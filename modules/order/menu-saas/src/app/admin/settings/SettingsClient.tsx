@@ -1,0 +1,289 @@
+"use client";
+
+import { useForm } from "react-hook-form";
+import type { Resolver } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { useRouter } from "next/navigation";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/components/ui/toast";
+import { Switch } from "@/components/ui/switch";
+import { Loader2, Save, Percent, Languages, CalendarCheck, Palette, Check } from "lucide-react";
+import { LANGUAGE_OPTIONS, t } from "@/lib/i18n";
+import { BRAND_PALETTES } from "@/lib/brand";
+import { cn } from "@/lib/utils";
+
+const settingsSchema = z.object({
+  name: z.string().min(1, "Name is required"),
+  description: z.string().optional(),
+  address: z.string().optional(),
+  phone: z.string().optional(),
+  currency: z.string().default("Rs."),
+  openingHours: z.string().optional(),
+  language: z.enum(["EN", "NEP"]).default("EN"),
+  logoUrl: z.string().url().optional().or(z.literal("")),
+  taxRate: z.coerce.number().min(0).max(100).default(0),
+  isTaxEnabled: z.boolean().default(false),
+  serviceChargeRate: z.coerce.number().min(0).max(100).default(0),
+  isServiceChargeEnabled: z.boolean().default(false),
+  bookingsEnabled: z.boolean().default(false),
+  brandColor: z.string().default("orange"),
+});
+
+type SettingsForm = z.infer<typeof settingsSchema>;
+
+interface Restaurant {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  address: string | null;
+  phone: string | null;
+  currency: string;
+  openingHours: string | null;
+  language: string;
+  logoUrl: string | null;
+  taxRate: number;
+  isTaxEnabled: boolean;
+  serviceChargeRate: number;
+  isServiceChargeEnabled: boolean;
+  bookingsEnabled: boolean;
+  brandColor: string;
+}
+
+interface Props {
+  restaurant: Restaurant;
+}
+
+export default function SettingsClient({ restaurant }: Props) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const lang = restaurant.language ?? "EN";
+  const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<SettingsForm>({
+    resolver: zodResolver(settingsSchema) as unknown as Resolver<SettingsForm>,
+    defaultValues: {
+      name: restaurant.name,
+      description: restaurant.description ?? "",
+      address: restaurant.address ?? "",
+      phone: restaurant.phone ?? "",
+      currency: restaurant.currency,
+      openingHours: restaurant.openingHours ?? "",
+      language: (restaurant.language ?? "EN") as "EN" | "NEP",
+      logoUrl: restaurant.logoUrl ?? "",
+      taxRate: restaurant.taxRate ?? 0,
+      isTaxEnabled: restaurant.isTaxEnabled ?? false,
+      serviceChargeRate: restaurant.serviceChargeRate ?? 0,
+      isServiceChargeEnabled: restaurant.isServiceChargeEnabled ?? false,
+      bookingsEnabled: restaurant.bookingsEnabled ?? false,
+      brandColor: restaurant.brandColor ?? "orange",
+    },
+  });
+
+  const isTaxEnabled = watch("isTaxEnabled");
+  const isServiceChargeEnabled = watch("isServiceChargeEnabled");
+  const bookingsEnabled = watch("bookingsEnabled");
+  const brandColor = watch("brandColor");
+
+  const onSubmit = async (data: SettingsForm) => {
+    const res = await fetch("/api/admin/settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...data, logoUrl: data.logoUrl || null }),
+    });
+    if (res.ok) {
+      toast({ title: "Settings saved!", variant: "success" });
+      router.refresh();
+    } else {
+      toast({ title: "Error saving settings", variant: "destructive" });
+    }
+  };
+
+  const pickBrandColor = (key: string) => {
+    setValue("brandColor", key, { shouldDirty: true });
+    document.querySelector<HTMLElement>("[data-brand]")?.setAttribute("data-brand", key);
+    document.documentElement.dataset.brand = key;
+  };
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)}>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Restaurant Information</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="space-y-1.5">
+            <Label className="flex items-center gap-1.5">
+              <Languages className="w-4 h-4 text-orange-500" /> Language / भाषा
+            </Label>
+            <select
+              {...register("language")}
+              className="w-full max-w-xs rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500"
+            >
+              {LANGUAGE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-gray-400">
+              Changes the admin app buttons, status names and notification messages to Nepali.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Restaurant Name *</Label>
+              <Input placeholder="My Restaurant" {...register("name")} />
+              {errors.name && <p className="text-red-500 text-xs">{errors.name.message}</p>}
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Description</Label>
+              <Textarea placeholder="Tell customers about your restaurant" rows={3} {...register("description")} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Phone</Label>
+              <Input placeholder="+977 980-000-0000" {...register("phone")} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Currency Symbol</Label>
+              <Input placeholder="Rs." {...register("currency")} />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Address</Label>
+              <Input placeholder="Thamel, Kathmandu" {...register("address")} />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Opening Hours</Label>
+              <Input placeholder="Mon–Sun: 10:00 AM – 10:00 PM" {...register("openingHours")} />
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label>Logo URL</Label>
+              <Input type="url" placeholder="https://example.com/logo.png" {...register("logoUrl")} />
+            </div>
+
+            <div className="sm:col-span-2 pt-3 border-t">
+              <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-1.5 mb-3">
+                <Percent className="w-4 h-4 text-orange-500" /> Tax Settings
+              </h3>
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl mb-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Enable Tax on Bills</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Tax is added to every order total</p>
+                </div>
+                <Switch
+                  checked={isTaxEnabled}
+                  onCheckedChange={(val) => setValue("isTaxEnabled", val)}
+                />
+              </div>
+              {isTaxEnabled && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="taxRate">Tax Rate (%)</Label>
+                  <Input
+                    id="taxRate"
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    max="100"
+                    placeholder="13"
+                    {...register("taxRate")}
+                    className="max-w-xs"
+                  />
+                  <p className="text-xs text-gray-400">e.g. 13 for 13% VAT. Will appear on cart and bill pages.</p>
+                </div>
+              )}
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl mt-3">
+                <div><p className="text-sm font-medium text-gray-700">Enable Service Charge</p><p className="text-xs text-gray-400 mt-0.5">Added as a separate line on bills</p></div>
+                <Switch checked={isServiceChargeEnabled} onCheckedChange={(val) => setValue("isServiceChargeEnabled", val)} />
+              </div>
+              {isServiceChargeEnabled && <div className="space-y-1.5 mt-3"><Label htmlFor="serviceChargeRate">Service Charge (%)</Label><Input id="serviceChargeRate" type="number" step="0.5" min="0" max="100" {...register("serviceChargeRate")} className="max-w-xs" /></div>}
+            </div>
+
+            <div className="sm:col-span-2 pt-3 border-t">
+              <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-1.5 mb-3">
+                <CalendarCheck className="w-4 h-4 text-orange-500" /> Booking Settings
+              </h3>
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl mb-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Enable Bookings</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Lets customers book services (rooms, pool, adventures) from the menu</p>
+                </div>
+                <Switch
+                  checked={bookingsEnabled}
+                  onCheckedChange={(val) => setValue("bookingsEnabled", val)}
+                />
+              </div>
+              {bookingsEnabled && (
+                <p className="text-xs text-gray-400">
+                  Super-admin has approved this feature. Manage your bookable services and incoming requests under Bookings in the sidebar.
+                </p>
+              )}
+            </div>
+
+            <div className="sm:col-span-2 pt-3 border-t">
+              <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-1.5 mb-1">
+                <Palette className="w-4 h-4 text-orange-500" /> {t(lang, "Brand Color", "ब्रान्ड रंग")}
+              </h3>
+              <p className="text-xs text-gray-400 mb-3">
+                {t(lang, "Pick the accent color. It flows through the admin panel and the customer menu — buttons, highlights and the menu banner.", "एक्सेन्ट रंग छनोट गर्नुहोस्। यो एडमिन प्यानल र ग्राहक मेनु — बटन, हाइलाइट र मेनु ब्यानरमा लागू हुन्छ।")}
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                {BRAND_PALETTES.map((palette) => {
+                  const selected = brandColor === palette.key;
+                  return (
+                    <button
+                      key={palette.key}
+                      type="button"
+                      onClick={() => pickBrandColor(palette.key)}
+                      aria-pressed={selected}
+                      className={cn(
+                        "group relative flex items-center gap-2 rounded-xl border px-3 py-2 text-left transition-all",
+                        selected ? "border-gray-900 ring-2 ring-gray-900/10 shadow-sm" : "border-gray-200 hover:border-gray-300"
+                      )}
+                    >
+                      <span className="flex rounded-lg overflow-hidden shrink-0 border border-black/10" aria-hidden="true">
+                        {palette.scale.slice(3, 8).map((hex) => (
+                          <span key={hex} className="w-3 h-6" style={{ backgroundColor: hex }} />
+                        ))}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium text-gray-800 truncate">{palette.label}</span>
+                        <span className="block h-1.5 w-full rounded-full mt-1" style={{ backgroundColor: palette.primary }} />
+                      </span>
+                      {selected && (
+                        <span className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-gray-900 text-white flex items-center justify-center">
+                          <Check className="w-3 h-3" />
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-2 border-t">
+            <p className="text-xs text-gray-400 mb-3">
+              Restaurant slug (used in QR URLs):{" "}
+              <code className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-700">{restaurant.slug}</code>
+            </p>
+          </div>
+
+          <Button
+            type="submit"
+            className="w-full bg-orange-500 hover:bg-orange-600 text-white"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>
+            ) : (
+              <><Save className="w-4 h-4 mr-1" /> Save Settings</>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+    </form>
+  );
+}

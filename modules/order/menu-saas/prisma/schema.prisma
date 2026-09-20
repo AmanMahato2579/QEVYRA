@@ -1,0 +1,396 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id           String      @id @default(cuid())
+  email        String      @unique
+  name         String
+  passwordHash String
+  role         UserRole    @default(RESTAURANT_ADMIN)
+  restaurantId String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([restaurantId])
+}
+
+model Restaurant {
+  id                     String             @id @default(cuid())
+  name                   String
+  slug                   String             @unique
+  description            String?
+  logoUrl                String?
+  address                String?
+  phone                  String?
+  currency               String             @default("Rs.")
+  openingHours           String?
+  language               String             @default("EN")
+  taxRate                Decimal            @default(0) @db.Decimal(5, 2)
+  isTaxEnabled           Boolean            @default(false)
+  serviceChargeRate      Decimal            @default(0) @db.Decimal(5, 2)
+  isServiceChargeEnabled Boolean            @default(false)
+  tableLimit             Int                @default(20)
+  isActive               Boolean            @default(true)
+  bookingsEnabled        Boolean            @default(false)
+  brandColor             String             @default("orange")
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+  plan                   String             @default("STAR")
+  // Subscription / plan management
+  subscriptionStatus     String             @default("ACTIVE") // ACTIVE | EXPIRED | CANCELLED | SUSPENDED
+  subscriptionStart      DateTime?
+  subscriptionExpiresAt  DateTime?
+  neverExpires           Boolean            @default(true)
+  autoOff                Boolean            @default(true)
+  // Star (first-10 founding customers) — starNumber 1..10 marks STAR status
+  starNumber             Int?
+  starNote               String?
+  // Lightweight per-customer overrides (JSON blobs, no relational explosion)
+  featureOverrides       String?
+  limitOverrides         String?
+  categories             Category[]
+  menuItems              MenuItem[]
+  notifications          Notification[]
+  pushSubscriptions      PushSubscription[]
+  orders                 Order[]
+  tables                 Table[]
+  tableSessions          TableSession[]
+  users                  User[]
+  bookableServices       BookableService[]
+  bookings               Booking[]
+
+  @@index([slug])
+}
+
+model Table {
+  id            String         @id @default(cuid())
+  restaurantId  String
+  tableNumber   Int
+  qrToken       String         @unique @default(cuid())
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  restaurant    Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  tableSessions TableSession[]
+
+  @@unique([restaurantId, tableNumber])
+  @@index([restaurantId])
+  @@index([qrToken])
+}
+
+model TableSession {
+  id                 String             @id @default(cuid())
+  restaurantId       String
+  tableId            String
+  status             TableSessionStatus @default(ACTIVE)
+  customerName       String?
+  applyTax           Boolean            @default(true)
+  applyServiceCharge Boolean            @default(true)
+  startedAt          DateTime           @default(now())
+  closedAt           DateTime?
+  orders             Order[]
+  bookings           Booking[]
+  restaurant         Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table              Table              @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+  @@index([tableId])
+  @@index([status])
+}
+
+model Category {
+  id           String     @id @default(cuid())
+  restaurantId String
+  name         String
+  description  String?
+  isActive     Boolean    @default(true)
+  sortOrder    Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  menuItems    MenuItem[]
+
+  @@index([restaurantId])
+}
+
+model MenuItem {
+  id                  String            @id @default(cuid())
+  restaurantId        String
+  categoryId          String
+  name                String
+  description         String?
+  price               Decimal           @db.Decimal(10, 2)
+  imageUrl            String?
+  ingredients         String?
+  discountPercent     Int               @default(0)
+  isAvailable         Boolean           @default(true)
+  sortOrder           Int               @default(0)
+  hasSpicyOption      Boolean           @default(false)
+  hasNoteOption       Boolean           @default(true)
+  requiresPreparation Boolean           @default(true)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  foodType            String?
+  category            Category          @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  restaurant          Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  variants            MenuItemVariant[]
+  orderItems          OrderItem[]
+
+  @@index([restaurantId])
+  @@index([categoryId])
+}
+
+model MenuItemVariant {
+  id          String      @id @default(cuid())
+  menuItemId  String
+  name        String
+  price       Decimal     @db.Decimal(10, 2)
+  isAvailable Boolean     @default(true)
+  sortOrder   Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  foodType    String?
+  menuItem    MenuItem    @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  orderItems  OrderItem[]
+
+  @@unique([menuItemId, name])
+  @@index([menuItemId])
+}
+
+model Order {
+  id              String       @id @default(cuid())
+  orderNumber     Int
+  restaurantId    String
+  tableSessionId  String
+  customerToken   String
+  source          OrderSource  @default(CUSTOMER)
+  status          OrderStatus  @default(PENDING)
+  statusChangedAt DateTime     @default(now())
+  subtotal        Decimal      @default(0) @db.Decimal(10, 2)
+  taxAmount       Decimal      @default(0) @db.Decimal(10, 2)
+  total           Decimal      @db.Decimal(10, 2)
+  notes           String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  restaurant      Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  tableSession    TableSession @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
+  orderItems      OrderItem[]
+
+  @@unique([restaurantId, orderNumber])
+  @@index([restaurantId])
+  @@index([tableSessionId])
+  @@index([status])
+  @@index([customerToken])
+  @@index([restaurantId, status, statusChangedAt])
+}
+
+model OrderItem {
+  id                String           @id @default(cuid())
+  orderId           String
+  menuItemId        String
+  menuItemName      String
+  menuItemVariantId String?
+  variantName       String?
+  quantity          Int
+  unitPrice         Decimal          @db.Decimal(10, 2)
+  subtotal          Decimal          @db.Decimal(10, 2)
+  isSpicy           Boolean          @default(false)
+  note              String?
+  status            OrderItemStatus  @default(NEW)
+  servedQuantity    Int              @default(0)
+  cancelledReason   String?
+  createdAt         DateTime         @default(now())
+  menuItem          MenuItem         @relation(fields: [menuItemId], references: [id])
+  menuItemVariant   MenuItemVariant? @relation(fields: [menuItemVariantId], references: [id])
+  order             Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([status])
+}
+
+model OrderSequence {
+  restaurantId String @id
+  lastNumber   Int    @default(1000)
+}
+
+model Notification {
+  id           String           @id @default(cuid())
+  restaurantId String
+  type         NotificationType
+  title        String
+  message      String
+  link         String?
+  read         Boolean          @default(false)
+  createdAt    DateTime         @default(now())
+  restaurant   Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, read])
+  @@index([restaurantId])
+  @@index([restaurantId, createdAt])
+}
+
+model BookableService {
+  id                  String              @id @default(cuid())
+  restaurantId        String
+  name                String
+  type                BookableServiceType @default(OTHER)
+  description         String?
+  price               Decimal             @db.Decimal(10, 2)
+  imageUrl            String?
+  capacity            Int                 @default(2)
+  venueCount          Int                 @default(1)
+  slotDurationMinutes Int                 @default(60)
+  openingMinutes      Int                 @default(480)
+  closingMinutes      Int                 @default(1380)
+  isActive            Boolean             @default(true)
+  sortOrder           Int                 @default(0)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  restaurant          Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  bookings            Booking[]
+
+  @@index([restaurantId])
+  @@index([restaurantId, isActive])
+}
+
+model Booking {
+  id              String          @id @default(cuid())
+  restaurantId    String
+  serviceId       String
+  tableSessionId  String?
+  contactName     String
+  contactPhone    String
+  note            String?
+  bookingDate     String // calendar day "YYYY-MM-DD" in restaurant time
+  startMinutes    Int // minutes from midnight when the slot starts
+  durationMinutes Int
+  guests          Int             @default(1)
+  status          BookingStatus   @default(PENDING)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  restaurant      Restaurant      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  service         BookableService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  tableSession    TableSession?   @relation(fields: [tableSessionId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId])
+  @@index([serviceId])
+  @@index([restaurantId, bookingDate])
+  @@index([restaurantId, status])
+}
+
+model PushSubscription {
+  id           String     @id @default(cuid())
+  restaurantId String
+  endpoint     String     @unique
+  p256dh       String
+  auth         String
+  userAgent    String?
+  createdAt    DateTime   @default(now())
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  RESTAURANT_ADMIN
+}
+
+enum OrderStatus {
+  PENDING
+  ACCEPTED
+  PREPARING
+  READY
+  COMPLETED
+  REJECTED
+}
+
+enum OrderItemStatus {
+  NEW
+  PREPARING
+  SERVED
+  CANCELLED
+}
+
+enum OrderSource {
+  CUSTOMER
+  WAITER
+}
+
+enum TableSessionStatus {
+  ACTIVE
+  CLOSED
+}
+
+enum NotificationType {
+  NEW_ORDER
+  NEW_TABLE_SESSION
+  ASSISTANCE_REQUEST
+  ORDER_STATUS
+  NEW_BOOKING
+}
+
+enum BookableServiceType {
+  ROOM
+  POOL
+  TABLE_GAME
+  ADVENTURE
+  OTHER
+}
+
+enum BookingStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  COMPLETED
+  CANCELLED
+}
+
+// Editable plan catalog. featureKeys is a JSON array (or ["ALL_CURRENT_FEATURES"]
+// for STAR so new platform features are picked up automatically). limitKeys is a
+// JSON object such as { "qrTables": 20 }. Future plans (e.g. GOLD) are stored here
+// with isVisible=false until they are ready to be exposed.
+model Plan {
+  id           String    @id
+  name         String
+  description  String?
+  priceMonthly Decimal?  @db.Decimal(10, 2)
+  priceYearly  Decimal?  @db.Decimal(10, 2)
+  featureKeys  String    @default("[]")
+  limitKeys    String    @default("{}")
+  sortOrder    Int       @default(0)
+  isVisible    Boolean   @default(true)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+// Lightweight audit trail for important Super Admin actions.
+model AdminActivity {
+  id             String   @id @default(cuid())
+  action         String
+  restaurantId   String?
+  restaurantName String?
+  detail         String?
+  actorEmail     String?
+  createdAt      DateTime @default(now())
+
+  @@index([restaurantId])
+  @@index([createdAt])
+}
+
+// Small key/value store for platform-level settings (defaults, branding).
+model PlatformSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}

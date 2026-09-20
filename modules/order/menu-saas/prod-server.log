@@ -1,0 +1,21 @@
+
+> menu-saas@0.1.0 start
+> next start
+
+▲ Next.js 16.3.3
+- Local:         http://localhost:3000
+- Network:       http://192.168.1.71:3000
+✓ Ready in 139ms
+✓ Running next.config.ts took 35ms
+⚠ "next start" does not work with "output: standalone" configuration. Use "node .next/standalone/server.js" instead.
+[31m[auth][error][0m MissingCSRF: CSRF token was missing during an action callback. Read more at https://errors.authjs.dev#missingcsrf
+    at r_ (D:\Personal_Project\menu-saas\.next\server\chunks\_05-9g7i._.js:1:67165)
+    at iF (D:\Personal_Project\menu-saas\.next\server\chunks\_05-9g7i._.js:404:50715)
+    at async iV (D:\Personal_Project\menu-saas\.next\server\chunks\_05-9g7i._.js:404:54973)
+    at async rV.do (D:\Personal_Project\menu-saas\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.prod.js:5:23405)
+    at async rV.handle (D:\Personal_Project\menu-saas\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.prod.js:5:28801)
+    at async Z (D:\Personal_Project\menu-saas\.next\server\chunks\[root-of-the-server]__0-kqyhz._.js:1:4711)
+    at async rV.handleResponse (D:\Personal_Project\menu-saas\node_modules\next\dist\compiled\next-server\app-route-turbo.runtime.prod.js:1:130297)
+    at async J (D:\Personal_Project\menu-saas\.next\server\chunks\[root-of-the-server]__0-kqyhz._.js:1:5789)
+    at async Module.C [as handler] (D:\Personal_Project\menu-saas\.next\server\chunks\[root-of-the-server]__0-kqyhz._.js:1:7846)
+    at async NextNodeServer.renderToResponseWithComponentsImpl (D:\Personal_Project\menu-saas\node_modules\next\dist\server\base-server.js:1537:9)

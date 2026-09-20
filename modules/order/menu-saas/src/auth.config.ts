@@ -1,0 +1,80 @@
+import type { NextAuthConfig } from "next-auth";
+
+type AuthUser = {
+  id?: string;
+  role?: string;
+  restaurantId?: string | null;
+  restaurantSlug?: string | null;
+  restaurantName?: string | null;
+};
+
+const authSecret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
+
+if (!authSecret && process.env.NODE_ENV === "production") {
+  console.warn(
+    "[NextAuth] Missing AUTH_SECRET/NEXTAUTH_SECRET. Set this in Vercel Project Settings before deploying."
+  );
+}
+
+export const authConfig: NextAuthConfig = {
+  // JWT strategy with a 30-day max age so owner/admin logins survive closing
+  // and reopening the app. Refresh while browsing keeps the session alive.
+  session: {
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+    updateAge: 60 * 60 * 24, // refresh session once per day
+  },
+  secret: authSecret,
+  trustHost: true,
+  debug: process.env.NODE_ENV === "development",
+
+  pages: {
+    signIn: "/login",
+    error: "/login",
+  },
+
+  cookies: {
+    sessionToken: {
+      name: "authjs.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 60 * 60 * 24 * 30, // 30 days
+      },
+    },
+  },
+
+  providers: [],
+
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        const u = user as AuthUser;
+
+        token.role = u.role;
+        token.restaurantId = u.restaurantId;
+        token.restaurantSlug = u.restaurantSlug;
+        token.restaurantName = u.restaurantName;
+      }
+
+      return token;
+    },
+
+    async session({ session, token }) {
+      if (token) {
+        session.user.id = token.sub!;
+
+        const u = session.user as unknown as AuthUser;
+
+        u.role = token.role as string | undefined;
+        u.restaurantId = token.restaurantId as string | undefined;
+        u.restaurantSlug = token.restaurantSlug as string | undefined;
+        u.restaurantName = token.restaurantName as string | undefined;
+      }
+
+      return session;
+    },
+  },
+};

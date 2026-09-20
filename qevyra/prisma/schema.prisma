@@ -1,0 +1,674 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// =============================================================================
+// QEVYRA — unified schema
+// -----------------------------------------------------------------------------
+// Ownership map (see docs/QEVYRA_DATABASE.md):
+//   CORE    — Business, User, Customer, BusinessCustomer, Plan, PlatformSetting,
+//             AdminActivity                 (universal tenant + platform services)
+//   WEBSITE — Website, WebsiteTheme
+//   ORDER   — Restaurant profile + Menu/Category/MenuItem/MenuItemVariant,
+//             Table/TableSession, Order/OrderItem/OrderSequence,
+//             BookableService/Booking, Notification, PushSubscription
+//   TRACK   — Workflow, WorkflowStep, Ticket, TicketStatusHistory
+//
+// Tenancy rule: `Business` is the universal tenant. The ORDER module keeps
+// `restaurantId` during the transition (each Restaurant links 1:1 to its
+// Business via Restaurant.businessId). Subscriptions/plan live on Business,
+// never on the order profile.
+// =============================================================================
+
+// ─────────────────────────────── CORE ───────────────────────────────────────
+
+enum BusinessType {
+  RESTAURANT
+  HOTEL
+  HOMESTAY
+  RETAIL
+  SERVICE
+  OTHER
+}
+
+model Business {
+  id          String       @id @default(cuid())
+  name        String
+  slug        String       @unique
+  type        BusinessType @default(RESTAURANT)
+  description String?
+  logoUrl     String?
+  coverUrl    String?
+  phone       String?
+  whatsapp    String?
+  address     String?
+  mapUrl      String?
+  openingHours String?
+  language    String       @default("EN")
+  brandColor  String       @default("orange")
+  isActive    Boolean      @default(true)
+
+  // Platform subscription (single source of truth for plan access).
+  plan                 String   @default("STAR")
+  subscriptionStatus   String   @default("ACTIVE") // ACTIVE | EXPIRED | CANCELLED | SUSPENDED
+  subscriptionStart    DateTime?
+  subscriptionExpiresAt DateTime?
+  neverExpires         Boolean  @default(true)
+  autoOff              Boolean  @default(true)
+  // Star (first-10 founding customers) — starNumber 1..10 marks STAR status
+  starNumber           Int?
+  starNote             String?
+  // Lightweight per-customer overrides (JSON blobs, no relational explosion)
+  featureOverrides     String?
+  limitOverrides       String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // ORDER profile (1:1 during transition; a Business that only uses
+  // Website/Track has no Restaurant row).
+  restaurant Restaurant?
+  users      User[]
+  customers  BusinessCustomer[]
+  website    Website?
+  workflows  Workflow[]
+  tickets    Ticket[]
+
+  @@index([slug])
+  @@index([type])
+  @@index([plan])
+}
+
+model User {
+  id           String      @id @default(cuid())
+  email        String      @unique
+  name         String
+  passwordHash String
+  role         UserRole    @default(RESTAURANT_ADMIN)
+  businessId   String?
+  restaurantId String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  business   Business?   @relation(fields: [businessId], references: [id], onDelete: SetNull)
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@index([businessId])
+  @@index([restaurantId])
+}
+
+// Global customer identity. NEVER a per-tenancy table: a person is one record
+// and per-business data hangs off BusinessCustomer (privacy + isolation).
+model Customer {
+  id        String           @id @default(cuid())
+  phone     String?
+  email     String?
+  name      String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  businesses BusinessCustomer[]
+
+  @@index([phone])
+  @@index([email])
+}
+
+// Tenant-scoped customer membership. Every touchpoint (booking, ticket, order)
+// resolves through this link so Business A never reads Business B's customers.
+model BusinessCustomer {
+  id          String   @id @default(cuid())
+  businessId  String
+  customerId  String
+  label       String?
+  notes       String?
+  visits      Int      @default(0)
+  lastVisitAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, customerId])
+  @@index([businessId])
+  @@index([customerId])
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  RESTAURANT_ADMIN
+}
+
+// Editable plan catalog. featureKeys is a JSON array (or ["ALL_CURRENT_FEATURES"]
+// for STAR so new platform features are picked up automatically). limitKeys is a
+// JSON object such as { "qrTables": 20, "workflows": 2 }. Future plans (e.g.
+// GOLD) are stored here with isVisible=false until they are ready to be exposed.
+model Plan {
+  id           String    @id
+  name         String
+  description  String?
+  priceMonthly Decimal?  @db.Decimal(10, 2)
+  priceYearly  Decimal?  @db.Decimal(10, 2)
+  featureKeys  String    @default("[]")
+  limitKeys    String    @default("{}")
+  sortOrder    Int       @default(0)
+  isVisible    Boolean   @default(true)
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+// Lightweight audit trail for important Super Admin actions.
+model AdminActivity {
+  id             String   @id @default(cuid())
+  action         String
+  businessId     String?
+  businessName   String?
+  restaurantId   String?
+  restaurantName String?
+  detail         String?
+  actorEmail     String?
+  createdAt      DateTime @default(now())
+
+  @@index([businessId])
+  @@index([restaurantId])
+  @@index([createdAt])
+}
+
+// Small key/value store for platform-level settings (defaults, branding).
+model PlatformSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// ─────────────────────────────── WEBSITE ────────────────────────────────────
+
+model Website {
+  id           String  @id @default(cuid())
+  businessId   String  @unique
+  themeId      String?
+  isPublished  Boolean @default(false)
+
+  // SEO
+  metaTitle       String?
+  metaDescription String?
+
+  // Hero
+  heroTitle    String?
+  heroSubtitle String?
+  heroImageUrl String?
+  heroCtaLabel String?
+  heroCtaLink  String?
+
+  // About
+  aboutTitle String?
+  aboutText  String?
+  aboutImageUrl String?
+
+  // Services / offerings blurb
+  servicesTitle String?
+  servicesText  String?
+
+  // Contact + footer
+  contactPhone String?
+  contactEmail String?
+  addressText  String?
+  mapUrl       String?
+  footerText   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  business Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  theme    WebsiteTheme? @relation(fields: [themeId], references: [id], onDelete: SetNull)
+}
+
+// Reusable website design presets (catalog seeded by super admin).
+model WebsiteTheme {
+  id           String   @id @default(cuid())
+  name         String
+  description  String?
+  primaryColor String   @default("#f97316")
+  background   String   @default("#0b0f19")
+  fontFamily   String?  @default("inter")
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  websites Website[]
+
+  @@index([isActive])
+}
+
+// ─────────────────────────────── ORDER ──────────────────────────────────────
+// The working QR-menu product. Keeps `restaurantId` during the transition;
+// `Restaurant.businessId` links the order profile to the universal tenant.
+
+model Restaurant {
+  id                     String             @id @default(cuid())
+  businessId             String?            @unique
+  name                   String
+  slug                   String             @unique
+  description            String?
+  logoUrl                String?
+  address                String?
+  phone                  String?
+  currency               String             @default("Rs.")
+  openingHours           String?
+  language               String             @default("EN")
+  taxRate                Decimal            @default(0) @db.Decimal(5, 2)
+  isTaxEnabled           Boolean            @default(false)
+  serviceChargeRate      Decimal            @default(0) @db.Decimal(5, 2)
+  isServiceChargeEnabled Boolean            @default(false)
+  tableLimit             Int                @default(20)
+  isActive               Boolean            @default(true)
+  bookingsEnabled        Boolean            @default(false)
+  brandColor             String             @default("orange")
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  business          Business?          @relation(fields: [businessId], references: [id], onDelete: SetNull)
+  categories        Category[]
+  menuItems         MenuItem[]
+  notifications     Notification[]
+  pushSubscriptions PushSubscription[]
+  orders            Order[]
+  tables            Table[]
+  tableSessions     TableSession[]
+  users             User[]
+  bookableServices  BookableService[]
+  bookings          Booking[]
+
+  @@index([slug])
+  @@index([businessId])
+}
+
+model Table {
+  id            String         @id @default(cuid())
+  restaurantId  String
+  tableNumber   Int
+  qrToken       String         @unique @default(cuid())
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  restaurant    Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  tableSessions TableSession[]
+
+  @@unique([restaurantId, tableNumber])
+  @@index([restaurantId])
+  @@index([qrToken])
+}
+
+model TableSession {
+  id                 String             @id @default(cuid())
+  restaurantId       String
+  tableId            String
+  status             TableSessionStatus @default(ACTIVE)
+  customerName       String?
+  applyTax           Boolean            @default(true)
+  applyServiceCharge Boolean            @default(true)
+  startedAt          DateTime           @default(now())
+  closedAt           DateTime?
+  orders             Order[]
+  bookings           Booking[]
+  restaurant         Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table              Table              @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+  @@index([tableId])
+  @@index([status])
+}
+
+model Category {
+  id           String     @id @default(cuid())
+  restaurantId String
+  name         String
+  description  String?
+  isActive     Boolean    @default(true)
+  sortOrder    Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  menuItems    MenuItem[]
+
+  @@index([restaurantId])
+}
+
+model MenuItem {
+  id                  String            @id @default(cuid())
+  restaurantId        String
+  categoryId          String
+  name                String
+  description         String?
+  price               Decimal           @db.Decimal(10, 2)
+  imageUrl            String?
+  ingredients         String?
+  discountPercent     Int               @default(0)
+  isAvailable         Boolean           @default(true)
+  sortOrder           Int               @default(0)
+  hasSpicyOption      Boolean           @default(false)
+  hasNoteOption       Boolean           @default(true)
+  requiresPreparation Boolean           @default(true)
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  foodType            String?
+  category            Category          @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  restaurant          Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  variants            MenuItemVariant[]
+  orderItems          OrderItem[]
+
+  @@index([restaurantId])
+  @@index([categoryId])
+}
+
+model MenuItemVariant {
+  id          String      @id @default(cuid())
+  menuItemId  String
+  name        String
+  price       Decimal     @db.Decimal(10, 2)
+  isAvailable Boolean     @default(true)
+  sortOrder   Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  foodType    String?
+  menuItem    MenuItem    @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  orderItems  OrderItem[]
+
+  @@unique([menuItemId, name])
+  @@index([menuItemId])
+}
+
+model Order {
+  id              String       @id @default(cuid())
+  orderNumber     Int
+  restaurantId    String
+  tableSessionId  String
+  customerToken   String
+  source          OrderSource  @default(CUSTOMER)
+  status          OrderStatus  @default(PENDING)
+  statusChangedAt DateTime     @default(now())
+  subtotal        Decimal      @default(0) @db.Decimal(10, 2)
+  taxAmount       Decimal      @default(0) @db.Decimal(10, 2)
+  total           Decimal      @db.Decimal(10, 2)
+  notes           String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  restaurant      Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  tableSession    TableSession @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
+  orderItems      OrderItem[]
+
+  @@unique([restaurantId, orderNumber])
+  @@index([restaurantId])
+  @@index([tableSessionId])
+  @@index([status])
+  @@index([customerToken])
+  @@index([restaurantId, status, statusChangedAt])
+}
+
+model OrderItem {
+  id                String           @id @default(cuid())
+  orderId           String
+  menuItemId        String
+  menuItemName      String
+  menuItemVariantId String?
+  variantName       String?
+  quantity          Int
+  unitPrice         Decimal          @db.Decimal(10, 2)
+  subtotal          Decimal          @db.Decimal(10, 2)
+  isSpicy           Boolean          @default(false)
+  note              String?
+  status            OrderItemStatus  @default(NEW)
+  servedQuantity    Int              @default(0)
+  cancelledReason   String?
+  createdAt         DateTime         @default(now())
+  menuItem          MenuItem         @relation(fields: [menuItemId], references: [id])
+  menuItemVariant   MenuItemVariant? @relation(fields: [menuItemVariantId], references: [id])
+  order             Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([status])
+}
+
+model OrderSequence {
+  restaurantId String @id
+  lastNumber   Int    @default(1000)
+}
+
+model Notification {
+  id           String           @id @default(cuid())
+  restaurantId String
+  type         NotificationType
+  title        String
+  message      String
+  link         String?
+  read         Boolean          @default(false)
+  createdAt    DateTime         @default(now())
+  restaurant   Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, read])
+  @@index([restaurantId])
+  @@index([restaurantId, createdAt])
+}
+
+model BookableService {
+  id                  String              @id @default(cuid())
+  restaurantId        String
+  name                String
+  type                BookableServiceType @default(OTHER)
+  description         String?
+  price               Decimal             @db.Decimal(10, 2)
+  imageUrl            String?
+  capacity            Int                 @default(2)
+  venueCount          Int                 @default(1)
+  slotDurationMinutes Int                 @default(60)
+  openingMinutes      Int                 @default(480)
+  closingMinutes      Int                 @default(1380)
+  isActive            Boolean             @default(true)
+  sortOrder           Int                 @default(0)
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  restaurant          Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  bookings            Booking[]
+
+  @@index([restaurantId])
+  @@index([restaurantId, isActive])
+}
+
+model Booking {
+  id              String          @id @default(cuid())
+  restaurantId    String
+  serviceId       String
+  tableSessionId  String?
+  contactName     String
+  contactPhone    String
+  note            String?
+  bookingDate     String // calendar day "YYYY-MM-DD" in restaurant time
+  startMinutes    Int // minutes from midnight when the slot starts
+  durationMinutes Int
+  guests          Int             @default(1)
+  status          BookingStatus   @default(PENDING)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  restaurant      Restaurant      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  service         BookableService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  tableSession    TableSession?   @relation(fields: [tableSessionId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId])
+  @@index([serviceId])
+  @@index([restaurantId, bookingDate])
+  @@index([restaurantId, status])
+}
+
+model PushSubscription {
+  id           String     @id @default(cuid())
+  restaurantId String
+  endpoint     String     @unique
+  p256dh       String
+  auth         String
+  userAgent    String?
+  createdAt    DateTime   @default(now())
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+}
+
+enum OrderStatus {
+  PENDING
+  ACCEPTED
+  PREPARING
+  READY
+  COMPLETED
+  REJECTED
+}
+
+enum OrderItemStatus {
+  NEW
+  PREPARING
+  SERVED
+  CANCELLED
+}
+
+enum OrderSource {
+  CUSTOMER
+  WAITER
+}
+
+enum TableSessionStatus {
+  ACTIVE
+  CLOSED
+}
+
+enum NotificationType {
+  NEW_ORDER
+  NEW_TABLE_SESSION
+  ASSISTANCE_REQUEST
+  ORDER_STATUS
+  NEW_BOOKING
+}
+
+enum BookableServiceType {
+  ROOM
+  POOL
+  TABLE_GAME
+  ADVENTURE
+  OTHER
+}
+
+enum BookingStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  COMPLETED
+  CANCELLED
+}
+
+// ─────────────────────────────── TRACK ──────────────────────────────────────
+
+// A process definition (e.g. "Garage service") with a short code prefix used to
+// build human-friendly tracking codes like GAR-0001. Owned by a Business.
+model Workflow {
+  id          String   @id @default(cuid())
+  businessId  String
+  name        String
+  description String?
+  codePrefix  String   @default("TRK")
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  business Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  steps    WorkflowStep[]
+  tickets  Ticket[]
+
+  @@unique([businessId, codePrefix])
+  @@index([businessId])
+  @@index([businessId, isActive])
+}
+
+// Ordered step of a workflow. `isReadyStep` marks the terminal "ready/collect"
+// state so ticket progress can render a completion state without guessing.
+model WorkflowStep {
+  id          String   @id @default(cuid())
+  workflowId  String
+  name        String
+  description String?
+  sortOrder   Int
+  isReadyStep Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  workflow       Workflow             @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  tickets        Ticket[]
+  statusHistory  TicketStatusHistory[] @relation("historyFromStep")
+  historyTo      TicketStatusHistory[] @relation("historyToStep")
+
+  @@unique([workflowId, sortOrder])
+  @@index([workflowId])
+}
+
+// One tracked job/case through a workflow. `trackingCode` (e.g. GAR-0001) is the
+// public identifier used by QR links and the customer tracking page.
+model Ticket {
+  id           String   @id @default(cuid())
+  businessId   String
+  workflowId   String
+  ticketNumber Int
+  trackingCode String   @unique
+
+  customerName  String?
+  customerPhone String?
+  itemSummary   String?
+  notes         String?
+
+  status          TicketStatus @default(PLACED)
+  currentStepId   String?
+  statusChangedAt DateTime     @default(now())
+  completedAt     DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  business     Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  workflow     Workflow           @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  currentStep  WorkflowStep?      @relation(fields: [currentStepId], references: [id], onDelete: SetNull)
+  statusHistory TicketStatusHistory[]
+
+  @@unique([businessId, ticketNumber])
+  @@unique([workflowId, ticketNumber])
+  @@index([businessId])
+  @@index([workflowId])
+  @@index([trackingCode])
+  @@index([status])
+}
+
+// Full immutable history of a ticket's lifecycle (step + status transitions).
+model TicketStatusHistory {
+  id          String   @id @default(cuid())
+  ticketId    String
+  fromStepId  String?
+  toStepId    String?
+  fromStatus  TicketStatus?
+  toStatus    TicketStatus
+  note        String?
+  createdAt   DateTime @default(now())
+
+  ticket   Ticket        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  fromStep WorkflowStep? @relation("historyFromStep", fields: [fromStepId], references: [id], onDelete: SetNull)
+  toStep   WorkflowStep? @relation("historyToStep", fields: [toStepId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId])
+  @@index([ticketId, createdAt])
+}
+
+enum TicketStatus {
+  PLACED
+  IN_PROGRESS
+  READY
+  COMPLETED
+  CANCELLED
+}
