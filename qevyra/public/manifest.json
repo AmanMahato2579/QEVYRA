@@ -1,11 +1,11 @@
 {
   "id": "/",
-  "name": "MenuQR – Digital Ordering",
-  "short_name": "MenuQR",
-  "description": "QR-based digital menu & ordering for restaurants",
+  "name": "QEVYRA",
+  "short_name": "QEVYRA",
+  "description": "Website, QR ordering and service tracking for your business",
   "lang": "en",
   "dir": "ltr",
-  "start_url": "/admin",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -25,6 +25,6 @@
       "purpose": "maskable any"
     }
   ],
-  "categories": ["food", "business"],
+  "categories": ["business", "food"],
   "screenshots": []
 }

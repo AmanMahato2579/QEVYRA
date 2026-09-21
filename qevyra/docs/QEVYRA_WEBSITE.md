@@ -3,9 +3,14 @@
 > Execution plan for the public website axis (phases W1 and W2 in QEVYRA_PLAN.md). We have NOT
 > built W1/W2 yet; what already runs is listed under QEVYRA_PLAN.md §7.
 
-## 1. QEVYRA.com — company website (Phase W1, planned)
+## 1. QEVYRA.com — company website
 
 Rebuild `/` (`src/app/(public)/page.tsx`) from the MenuQR marketing page into a QEVYRA company site.
+
+**Status: built (Phase W1).** `/` now renders QEVYRA branding, hero, products (Website/Order/Track),
+how-it-works, plans (Bronze/Silver/Star), contact, and a login CTA. Root metadata,
+`public/manifest.json` (`start_url: "/"`, name/short_name QEVYRA) and the `/login` brand text were
+updated in the same change. Verified: dev-smoke returned 200 with the expected sections.
 
 Sections:
 - Header: QEVYRA branding, main nav (Products, Pricing, Contact), Login / Business CTA.
@@ -16,6 +21,9 @@ Sections:
 - Footer: brand, terms/privacy placeholders, login link.
 
 Rules unchanged: presentation-only, no per-industry features, no SaaS logic in this page.
+Remaining branding cleanups (MenuQR in admin metadata/headers, QR poster, absent from the company
+page surface) are tracked as a separate cross-cutting rename, per Arch Rules §E.21 (one axis per
+pass).
 
 ## 2. Business website — template system (Phase W2, planned)
 

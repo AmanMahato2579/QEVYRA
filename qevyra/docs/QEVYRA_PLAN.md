@@ -173,7 +173,7 @@ Held to "do not claim something works unless you actually verified it". Legend:
 | Subscription logic centralized in `plans.ts` (`getEffectiveAccess`, `canUse`, `enforceSubscriptionState`, `loadOperationalRestaurant`) | VERIFIED (code + tsc/build green) |
 | Website editor `/admin/website` (theme picker, content sections, publish) + `/api/admin/website` | EXISTS (built, typecheck/build pass; editor UI itself smoke-tested) |
 | `/b/{slug}` service-button derivation from enabled modules | PLANNED (Phase W2) |
-| QEVYRA.com rebuild (company site) | PLANNED (Phase W1) — current `/` is MenuQR-branded |
+| QEVYRA.com rebuild (company site) | **W1 (done)** — `/` is QEVYRA-branded: hero, products (Website/Order/Track), how-it-works, plans (Bronze/Silver/Star, no GOLD), contact, login; root metadata + manifest + `/login` brand updated; verified 200 + content via dev smoke |
 | Slug-level menu `/r/{restaurantSlug}` | PLANNED (Phase O1) |
 | Track public page `/track/{code}` | PLANNED (Phase T1) — DB schema exists |
 | Track SaaS admin `/admin/track/*` | PLANNED (Phase T2) |

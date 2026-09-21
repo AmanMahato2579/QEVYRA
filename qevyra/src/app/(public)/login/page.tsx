@@ -151,8 +151,8 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-orange-500 mb-4 shadow-lg shadow-orange-500/30">
             <QrCode className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl font-bold text-white">MenuQR</h1>
-          <p className="text-gray-400 mt-1">Restaurant Management</p>
+          <h1 className="text-3xl font-bold text-white">QEVYRA</h1>
+          <p className="text-gray-400 mt-1">Business Management</p>
         </div>
 
         <Suspense

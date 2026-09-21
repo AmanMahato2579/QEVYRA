@@ -7,9 +7,9 @@ import { ToastProvider } from "@/components/ui/toast";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "MenuQR – Digital Menu & Ordering for Restaurants",
+  title: "QEVYRA – Website, Order & Tracking platform",
   description:
-    "The simplest way for restaurants to go digital. QR-based menu ordering, real-time order tracking, no app needed.",
+    "Everything a business needs in one place: a public website, a QR menu with online ordering, and live service tracking for customers.",
   manifest: "/manifest.json",
   icons: {
     icon: "/icons/icon-192.png",
