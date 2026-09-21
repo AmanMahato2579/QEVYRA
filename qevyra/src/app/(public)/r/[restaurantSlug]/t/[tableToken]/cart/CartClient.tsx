@@ -64,6 +64,16 @@ export default function CartClient({ restaurant, table, tableSession }: Props) {
     if (cart.length === 0) return;
     setPlacing(true);
     const customerToken = getOrCreateCustomerToken();
+    // Stable idempotency key per placement: reused across retries so a network
+    // failure after the server processed the order can't create a duplicate.
+    const reqKeyKey = `menuqr_pending_req_${tableSession.id}`;
+    let requestKey: string;
+    try {
+      requestKey = localStorage.getItem(reqKeyKey) ?? crypto.randomUUID();
+      localStorage.setItem(reqKeyKey, requestKey);
+    } catch {
+      requestKey = crypto.randomUUID();
+    }
     try {
       const res = await fetch("/api/customer/orders", {
         method: "POST",
@@ -72,6 +82,7 @@ export default function CartClient({ restaurant, table, tableSession }: Props) {
           restaurantId: restaurant.id,
           tableSessionId: tableSession.id,
           customerToken,
+          clientRequestId: requestKey,
           items: cart.map((i) => ({
             menuItemId: i.menuItemId,
             variantId: i.variantId,
@@ -88,6 +99,7 @@ export default function CartClient({ restaurant, table, tableSession }: Props) {
         return;
       }
 
+      try { localStorage.removeItem(reqKeyKey); } catch { /* ignore */ }
       const order = await res.json();
       // Clear cart
       saveCart(tableSession.id, []);

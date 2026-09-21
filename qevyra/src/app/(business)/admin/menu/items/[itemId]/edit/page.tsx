@@ -7,7 +7,7 @@ interface Props {
   params: Promise<{ itemId: string }>;
 }
 
-export const metadata = { title: "Edit Menu Item – MenuQR Admin" };
+export const metadata = { title: "Edit Menu Item – QEVYRA Admin" };
 
 export default async function EditMenuItemPage({ params }: Props) {
   const { itemId } = await params;

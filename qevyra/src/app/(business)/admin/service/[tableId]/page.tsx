@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getActiveSession, getSessionOverview, getPublicMenu } from "@/lib/db";
 import TableWorkspace from "./TableWorkspace";
 
-export const metadata = { title: "Table Service – MenuQR Admin" };
+export const metadata = { title: "Table Service – QEVYRA Admin" };
 export const dynamic = "force-dynamic";
 
 interface Props {

@@ -26,6 +26,7 @@ interface WebsiteData {
   addressText: string | null;
   mapUrl: string | null;
   footerText: string | null;
+  googleReviewUrl: string | null;
 }
 
 interface Theme {
@@ -44,8 +45,8 @@ interface Props {
 }
 
 const inputCls =
-  "w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500";
-const labelCls = "block text-xs font-medium text-gray-400 uppercase tracking-wider mb-1.5";
+  "w-full bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500";
+const labelCls = "block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5";
 
 export default function WebsiteClient({ slug, website, themes, canUse }: Props) {
   const router = useRouter();
@@ -73,6 +74,7 @@ export default function WebsiteClient({ slug, website, themes, canUse }: Props) 
     addressText: website?.addressText ?? "",
     mapUrl: website?.mapUrl ?? "",
     footerText: website?.footerText ?? "",
+    googleReviewUrl: website?.googleReviewUrl ?? "",
   }));
 
   const set = (key: keyof typeof draft, value: string | boolean) =>
@@ -82,13 +84,13 @@ export default function WebsiteClient({ slug, website, themes, canUse }: Props) 
     return (
       <div className="max-w-lg mx-auto mt-24 text-center">
         <div className="w-16 h-16 rounded-2xl bg-purple-500/20 flex items-center justify-center mx-auto mb-5">
-          <Lock className="w-8 h-8 text-purple-400" />
+          <Lock className="w-8 h-8 text-purple-600" />
         </div>
-        <h1 className="text-2xl font-bold text-white">Website editor not available</h1>
-        <p className="text-gray-400 mt-3 text-sm">
+        <h1 className="text-2xl font-bold text-gray-900">Website editor not available</h1>
+        <p className="text-gray-600 mt-3 text-sm">
           Your current plan does not include the customisable business website.
           Upgrade to Silver or Star to publish a storefront at{" "}
-          <span className="text-purple-300">qevyra.com/b/{slug}</span>.
+          <span className="text-purple-600">qevyra.com/b/{slug}</span>.
         </p>
       </div>
     );
@@ -122,12 +124,12 @@ export default function WebsiteClient({ slug, website, themes, canUse }: Props) 
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-            <Globe className="w-6 h-6 text-purple-400" /> Business Website
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <Globe className="w-6 h-6 text-purple-600" /> Business Website
           </h1>
-          <p className="text-gray-400 text-sm mt-1">
+          <p className="text-gray-500 text-sm mt-1">
             Your public storefront lives at{" "}
-            <a href={`/b/${slug}`} target="_blank" className="text-purple-300 hover:underline">
+            <a href={`/b/${slug}`} target="_blank" className="text-purple-600 hover:underline">
               /b/{slug} <ExternalLink className="w-3 h-3 inline" />
             </a>
           </p>
@@ -136,7 +138,7 @@ export default function WebsiteClient({ slug, website, themes, canUse }: Props) 
           <button
             onClick={() => save(false)}
             disabled={saving}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-white/20 text-gray-200 text-sm font-medium hover:bg-white/10 disabled:opacity-50"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-50"
           >
             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             Save draft
@@ -156,8 +158,8 @@ export default function WebsiteClient({ slug, website, themes, canUse }: Props) 
         {/* Left: editor */}
         <div className="lg:col-span-2 space-y-5">
           {/* Theme */}
-          <section className="bg-white/5 border border-white/10 rounded-2xl p-5">
-            <h2 className="font-semibold text-white mb-3">Theme</h2>
+          <section className="bg-white border border-gray-200 rounded-2xl p-5">
+            <h2 className="font-semibold text-gray-900 mb-3">Theme</h2>
             <div className="flex flex-wrap gap-3">
               {themes.map((theme) => (
                 <button
@@ -165,18 +167,18 @@ export default function WebsiteClient({ slug, website, themes, canUse }: Props) 
                   type="button"
                   onClick={() => set("themeId", theme.id)}
                   className={`text-left rounded-xl p-3 border transition-colors ${
-                    draft.themeId === theme.id ? "border-purple-500 bg-purple-500/10" : "border-white/10 hover:bg-white/5"
+                    draft.themeId === theme.id ? "border-purple-500 bg-purple-500/10" : "border-gray-200 hover:bg-gray-50"
                   }`}
                 >
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="w-6 h-6 rounded-full border border-white/20" style={{ backgroundColor: theme.primaryColor }} />
-                    <span className="text-sm font-medium text-white">{theme.name}</span>
+                    <span className="w-6 h-6 rounded-full border border-gray-300" style={{ backgroundColor: theme.primaryColor }} />
+                    <span className="text-sm font-medium text-gray-900">{theme.name}</span>
                   </div>
-                  {theme.description && <p className="text-xs text-gray-400 max-w-[180px]">{theme.description}</p>}
+                  {theme.description && <p className="text-xs text-gray-500 max-w-[180px]">{theme.description}</p>}
                 </button>
               ))}
             </div>
-            <label className="flex items-center gap-2 mt-4 text-sm text-gray-200 cursor-pointer">
+            <label className="flex items-center gap-2 mt-4 text-sm text-gray-700 cursor-pointer">
               <input
                 type="checkbox"
                 checked={draft.isPublished}
@@ -188,8 +190,8 @@ export default function WebsiteClient({ slug, website, themes, canUse }: Props) 
           </section>
 
           {/* Hero */}
-          <section className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-3">
-            <h2 className="font-semibold text-white">Hero banner</h2>
+          <section className="bg-white border border-gray-200 rounded-2xl p-5 space-y-3">
+            <h2 className="font-semibold text-gray-900">Hero banner</h2>
             <div>
               <label className={labelCls}>Title</label>
               <input className={inputCls} value={draft.heroTitle} onChange={(e) => set("heroTitle", e.target.value)} placeholder="Demo Momo House" />
@@ -201,7 +203,7 @@ export default function WebsiteClient({ slug, website, themes, canUse }: Props) 
             <div className="grid sm:grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>CTA label</label>
-                <input className={inputCls} value={draft.heroCtaLabel} onChange={(e) => set("heroCtaLabel", e.target.value)} placeholder="View Menu & Order" />
+                <input className={inputCls} value={draft.heroCtaLabel} onChange={(e) => set("heroCtaLabel", e.target.value)} placeholder="View Menu" />
               </div>
               <div>
                 <label className={labelCls}>CTA link</label>
@@ -215,8 +217,8 @@ export default function WebsiteClient({ slug, website, themes, canUse }: Props) 
           </section>
 
           {/* About */}
-          <section className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-3">
-            <h2 className="font-semibold text-white">About</h2>
+          <section className="bg-white border border-gray-200 rounded-2xl p-5 space-y-3">
+            <h2 className="font-semibold text-gray-900">About</h2>
             <div>
               <label className={labelCls}>Title</label>
               <input className={inputCls} value={draft.aboutTitle} onChange={(e) => set("aboutTitle", e.target.value)} placeholder="About us" />
@@ -232,8 +234,8 @@ export default function WebsiteClient({ slug, website, themes, canUse }: Props) 
           </section>
 
           {/* Services */}
-          <section className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-3">
-            <h2 className="font-semibold text-white">Services / offerings</h2>
+          <section className="bg-white border border-gray-200 rounded-2xl p-5 space-y-3">
+            <h2 className="font-semibold text-gray-900">Services / offerings</h2>
             <div>
               <label className={labelCls}>Title</label>
               <input className={inputCls} value={draft.servicesTitle} onChange={(e) => set("servicesTitle", e.target.value)} placeholder="What we offer" />
@@ -245,8 +247,8 @@ export default function WebsiteClient({ slug, website, themes, canUse }: Props) 
           </section>
 
           {/* Contact */}
-          <section className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-3">
-            <h2 className="font-semibold text-white">Contact & location</h2>
+          <section className="bg-white border border-gray-200 rounded-2xl p-5 space-y-3">
+            <h2 className="font-semibold text-gray-900">Contact & location</h2>
             <div className="grid sm:grid-cols-2 gap-3">
               <div>
                 <label className={labelCls}>Phone</label>
@@ -269,11 +271,16 @@ export default function WebsiteClient({ slug, website, themes, canUse }: Props) 
               <label className={labelCls}>Footer text</label>
               <input className={inputCls} value={draft.footerText} onChange={(e) => set("footerText", e.target.value)} placeholder="Demo Momo House © 2026" />
             </div>
+            <div>
+              <label className={labelCls}>Google review link</label>
+              <input className={inputCls} value={draft.googleReviewUrl} onChange={(e) => set("googleReviewUrl", e.target.value)} placeholder="https://search.google.com/local/writereview?placeid=…" />
+              <p className="mt-1 text-xs text-gray-500">Your public website shows a &quot;Write a review&quot; button pointing straight to this Google link.</p>
+            </div>
           </section>
 
           {/* SEO */}
-          <section className="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-3">
-            <h2 className="font-semibold text-white">SEO</h2>
+          <section className="bg-white border border-gray-200 rounded-2xl p-5 space-y-3">
+            <h2 className="font-semibold text-gray-900">SEO</h2>
             <div>
               <label className={labelCls}>Meta title</label>
               <input className={inputCls} value={draft.metaTitle} onChange={(e) => set("metaTitle", e.target.value)} />
@@ -288,7 +295,7 @@ export default function WebsiteClient({ slug, website, themes, canUse }: Props) 
         {/* Right: live preview */}
         <div className="lg:col-span-1">
           <div className="sticky top-20 space-y-3">
-            <p className="text-xs font-medium text-gray-400 uppercase tracking-wider">Live preview</p>
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Live preview</p>
             <div
               className="rounded-2xl overflow-hidden border border-white/10"
               style={{
@@ -299,7 +306,7 @@ export default function WebsiteClient({ slug, website, themes, canUse }: Props) 
                 <p className="text-lg font-bold text-white truncate">{draft.heroTitle || "Your business name"}</p>
                 {draft.heroSubtitle && <p className="text-xs opacity-70 mt-1 line-clamp-2">{draft.heroSubtitle}</p>}
                 <div className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white">
-                  {draft.heroCtaLabel || "View Menu & Order"}
+                  {draft.heroCtaLabel || "View Menu"}
                 </div>
               </div>
               {draft.aboutText && (
@@ -318,7 +325,7 @@ export default function WebsiteClient({ slug, website, themes, canUse }: Props) 
             <a
               href={`/b/${slug}`}
               target="_blank"
-              className="text-xs text-purple-300 hover:text-purple-200 inline-flex items-center gap-1"
+              className="text-xs text-purple-600 hover:text-purple-200 inline-flex items-center gap-1"
             >
               Open live site <ExternalLink className="w-3 h-3" />
             </a>

@@ -12,7 +12,7 @@ export interface PlatformSettings {
 }
 
 export const PLATFORM_SETTING_DEFAULTS: PlatformSettings = {
-  platformName: "MenuQR",
+  platformName: "QEVYRA",
   defaultTableLimit: 20,
   defaultSubscriptionDays: 365,
   newRestaurantNeverExpires: true,

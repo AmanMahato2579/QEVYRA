@@ -10,7 +10,7 @@ Current boundaries and where the code lives today:
 | `core` | Business tenant, subscription/lifecycle, customers, QR, communication | `src/lib/plans.ts`, `plans-catalog.ts`, `settings.ts`, `activity.ts`, `auth.ts`, `auth-guard.ts` |
 | `website` | Universal website engine (this module was refactored) | `src/modules/website/services.ts` |
 | `order` | QR Menu SaaS engine | `src/lib/db.ts` (god-module — refactor tracked, do NOT casually rewrite) |
-| `track` | Status tracking SaaS engine (tickets, workflows) | *to be built* |
+| `track` | Status tracking SaaS engine (tickets, workflows) | `src/modules/track/services.ts`, `catalog.ts` |
 
 Rules:
 

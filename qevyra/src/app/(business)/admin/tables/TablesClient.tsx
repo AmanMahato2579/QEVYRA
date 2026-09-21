@@ -204,7 +204,7 @@ async function generateQrPoster(qrUrl: string, tableNumber: number, restaurantNa
   // Footer divider + brand
   ctx.fillStyle = "rgba(255, 255, 255, 0.12)";
   ctx.fillRect(250, H - 150, W - 500, 1);
-  drawCenteredText(ctx, "Powered by MenuQR", W / 2, H - 92, "600 24px Inter, sans-serif", "#6c7488");
+  drawCenteredText(ctx, "Powered by QEVYRA", W / 2, H - 92, "600 24px Inter, sans-serif", "#6c7488");
 
   return canvas;
 }

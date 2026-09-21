@@ -1,12 +1,15 @@
-// Pure plan catalog — feature keys, limits, defaults and display styles.
-// Importable from both client and server code (no Prisma / I/O here).
-//
 // Design notes:
 // - GOLD is intentionally absent from PLAN_IDS / DEFAULT_PLAN_CONFIGS. The
 //   architecture supports it later (add a Plan row + flip isVisible) without
 //   touching this catalog or the database schema.
+// - STAR is a Founding Partner tag — not a separate product tier. STAR restaurants
+//   receive the same Silver feature set plus a 1-year update commitment and
+//   platform feature pushes from the QEVYRA team. The starNumber field (1–10)
+//   marks founding status. Feature overrides for STAR customers are pushed
+//   individually by the Super Admin via featureOverrides / limitOverrides JSON.
 // - STAR uses the ALL_CURRENT_FEATURES marker so every feature added to
 //   FEATURE_CATALOG is automatically granted to Star customers.
+
 
 export interface FeatureDef {
   key: string;
@@ -70,9 +73,11 @@ export const DEFAULT_PLAN_CONFIGS: Record<PlanId, PlanDefaults> = {
       "kitchen_workflow",
       "order_history",
     ],
-    limits: { qrTables: 20 },
+    limits: { qrTables: 10 },
   },
-  STAR: { features: [ALL_FEATURES_MARKER], limits: { qrTables: 50 } },
+  // STAR = Founding Partner tag. Features pushed individually by Super Admin.
+  // Default limits same as Silver; override via limitOverrides JSON per restaurant.
+  STAR: { features: [ALL_FEATURES_MARKER], limits: { qrTables: 20 } },
 };
 
 export function isPlanId(value: string | null | undefined): value is PlanId {

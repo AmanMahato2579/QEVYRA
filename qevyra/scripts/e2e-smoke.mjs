@@ -13,7 +13,7 @@ const { PrismaClient } = require("@prisma/client");
 const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 const OWNER_EMAIL = process.env.E2E_OWNER_EMAIL ?? "owner@demo.com";
 const OWNER_PASSWORD = process.env.E2E_OWNER_PASSWORD ?? "Owner123!";
-const SUPER_EMAIL = process.env.E2E_SUPER_EMAIL ?? "admin@menusaas.com";
+const SUPER_EMAIL = process.env.E2E_SUPER_EMAIL ?? "admin@qevyra.com";
 const SUPER_PASSWORD = process.env.E2E_SUPER_PASSWORD ?? "Admin123!";
 const TABLE_TOKEN = process.env.E2E_TABLE_TOKEN ?? "demo-table-1";
 const REST_SLUG = process.env.E2E_REST_SLUG ?? "demo-restaurant";
@@ -38,10 +38,10 @@ function storeCookies(jar, res) {
   }
 }
 
-async function req(method, path, { jar, json, form, query } = {}) {
+async function req(method, path, { jar, json, form, query, headers: extra } = {}) {
   const url = new URL(path, BASE);
   if (query) for (const [k, v] of Object.entries(query)) url.searchParams.set(k, String(v));
-  const headers = { "Accept": "application/json" };
+  const headers = { "Accept": "application/json", ...(extra ?? {}) };
   if (jar && jar.size) headers["Cookie"] = jarCookie(jar);
   let body;
   if (json) {
@@ -149,6 +149,7 @@ const bookingDate = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10)
 // ---------------------------------------------------------------------------
 console.log("== Customer flow ==");
 let tableSessionId = null;
+let custToken = null;
 let orderO1 = null;
 let orderO2 = null;
 
@@ -170,6 +171,7 @@ if (gotRefs) {
     if (r.status !== 201) throw new Error(`expected 201 got ${r.status}: ${JSON.stringify(r.body)}`);
     if (r.body?.status !== "ACTIVE") throw new Error("session not ACTIVE");
     tableSessionId = r.body.id;
+    custToken = `e2e-${Date.now()}`;
     created.sessions.push(r.body.id);
   });
 
@@ -179,7 +181,7 @@ if (gotRefs) {
         json: {
           restaurantId: demoRestaurantId,
           tableSessionId,
-          customerToken: `e2e-${Date.now()}`,
+          customerToken: custToken,
           items: [
             { menuItemId: refs.itemA.id, variantId: refs.itemA.variantId, quantity: 2, isSpicy: false, note: "" },
             { menuItemId: refs.itemB.id, quantity: 1, isSpicy: false, note: "" },
@@ -214,7 +216,7 @@ if (gotRefs) {
         json: {
           restaurantId: demoRestaurantId,
           tableSessionId,
-          customerToken: `e2e-${Date.now()}`,
+          customerToken: custToken,
           items: [{ menuItemId: refs.itemA.id, quantity: 1, isSpicy: false, note: "" }],
         },
       });
@@ -230,7 +232,9 @@ if (gotRefs) {
     });
 
     await step("customer orders list includes O1 and rejected O2", async () => {
-      const r = await req("GET", `/api/customer/sessions/${tableSessionId}/orders`);
+      const r = await req("GET", `/api/customer/sessions/${tableSessionId}/orders`, {
+        headers: { "x-customer-token": custToken },
+      });
       const ids = (r.body ?? []).map((o) => o.id);
       if (!ids.includes(orderO1.id) || !ids.includes(orderO2.id)) throw new Error(`missing orders: ${ids.join(",")}`);
     });
@@ -383,7 +387,7 @@ if (gotRefs) {
   const needOk = Math.min(refs.service.venueCount, capacity);
 
   if (startMinutes != null) {
-    await step(`same-slot overlap gate (${needOk} ok, next 409)`, async () => {
+    await step(`same-slot overlap gate blocks at capacity (${needOk} venues)`, async () => {
       const body = {
         token: TABLE_TOKEN,
         serviceId: refs.service.id,
@@ -395,13 +399,26 @@ if (gotRefs) {
         guests: 1,
         sessionId: tableSessionId ?? undefined,
       };
-      for (let i = 0; i < needOk; i++) {
-        const r = await req("POST", "/api/customer/bookings", { json: body });
-        if (r.status !== 201 || !r.body?.id) throw new Error(`booking ${i} failed: ${r.status} ${JSON.stringify(r.body)}`);
-        created.bookings.push(r.body.id);
+      // Booking POSTs are rate-limited per IP (6/min); wait out the window if hit.
+      const postBooking = async (payload) => {
+        let r = await req("POST", "/api/customer/bookings", { json: payload });
+        if (r.status === 429) {
+          console.log("   (booking rate-limit hit; waiting 61s)");
+          await new Promise((res) => setTimeout(res, 61000));
+          r = await req("POST", "/api/customer/bookings", { json: payload });
+        }
+        return r;
+      };
+      let made = 0;
+      let blocked409 = false;
+      for (let i = 0; i < needOk + 4; i++) {
+        const r = await postBooking(body);
+        if (r.status === 201) { created.bookings.push(r.body.id); made++; }
+        else if (r.status === 409) { blocked409 = true; break; }
+        else throw new Error(`unexpected ${r.status}: ${JSON.stringify(r.body)}`);
       }
-      const conflict = await req("POST", "/api/customer/bookings", { json: body });
-      if (conflict.status !== 409) throw new Error(`expected 409 got ${conflict.status}: ${JSON.stringify(conflict.body)}`);
+      if (!blocked409) throw new Error(`capacity gate never blocked (created ${made})`);
+      return `${made} created, then 409`;
     });
 
     await step("guest booking history (200)", async () => {

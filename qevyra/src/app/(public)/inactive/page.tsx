@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 
 export const metadata = {
-  title: "Account Inactive - MenuQR",
+  title: "Account Inactive - QEVYRA",
 };
 
 export default function InactivePage() {

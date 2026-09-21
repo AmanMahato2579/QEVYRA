@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { QrCode, Loader2, Eye, EyeOff } from "lucide-react";
+import { isTrackBusinessType } from "@/lib/business-kind";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email"),
@@ -56,9 +57,16 @@ function LoginForm() {
       }
 
       const session = await getSession();
-      const role = (session?.user as { role?: string } | undefined)?.role;
+      const u = session?.user as
+        | { role?: string; businessType?: string | null }
+        | undefined;
+      const role = u?.role;
 
-      router.push(role === "SUPER_ADMIN" ? "/super-admin" : "/admin");
+      if (role === "SUPER_ADMIN") {
+        router.push("/super-admin");
+        return;
+      }
+      router.push(isTrackBusinessType(u?.businessType) ? "/track-admin" : "/admin");
     } catch (err) {
       console.error("Login submission error:", err);
       setError("An unexpected error occurred during sign in. Please try again.");
@@ -70,7 +78,7 @@ function LoginForm() {
       <CardHeader className="text-center pb-2">
         <CardTitle className="text-white text-xl">Welcome back</CardTitle>
         <CardDescription className="text-gray-400">
-          Sign in to manage your restaurant
+          Sign in to manage your business
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-4">

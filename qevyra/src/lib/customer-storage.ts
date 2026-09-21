@@ -13,7 +13,13 @@ export function getOrCreateCustomerToken(): string {
   if (typeof window === "undefined") return "";
   let token = localStorage.getItem(CUSTOMER_TOKEN_KEY);
   if (!token) {
-    token = `ct_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+    // crypto.randomUUID is installed (secure context / localhost). Fall back to
+    // a per-session random value only where it is unavailable.
+    try {
+      token = crypto.randomUUID();
+    } catch {
+      token = `ct_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
+    }
     localStorage.setItem(CUSTOMER_TOKEN_KEY, token);
   }
   return token;

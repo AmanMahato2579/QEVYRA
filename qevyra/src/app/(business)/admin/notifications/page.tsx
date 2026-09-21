@@ -4,7 +4,7 @@ import { t } from "@/lib/i18n";
 import { startOfBusinessDay } from "@/lib/db";
 import NotificationsClient from "./NotificationsClient";
 
-export const metadata = { title: "Notifications – MenuQR Admin" };
+export const metadata = { title: "Notifications – QEVYRA Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function NotificationsPage() {

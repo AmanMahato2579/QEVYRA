@@ -12,28 +12,30 @@ export async function POST(
 
   const { sessionId } = await params;
 
-  const tableSession = await prisma.tableSession.findFirst({
-    where: { id: sessionId, restaurantId },
+  const closed = await prisma.$transaction(async (tx) => {
+    // Guarded close: only an ACTIVE session can be closed. Combined with the
+    // SELECT ... FOR UPDATE taken by createOrder, an order can never be placed
+    // into a session that is closing right now.
+    const close = await tx.tableSession.updateMany({
+      where: { id: sessionId, restaurantId, status: "ACTIVE" },
+      data: { status: "CLOSED", closedAt: new Date() },
+    });
+    if (close.count !== 1) return false;
+
+    // Automatically mark any remaining running orders in this session as COMPLETED
+    await tx.order.updateMany({
+      where: {
+        tableSessionId: sessionId,
+        status: { notIn: ["COMPLETED", "REJECTED"] },
+      },
+      data: { status: "COMPLETED", statusChangedAt: new Date() },
+    });
+    return true;
   });
 
-  if (!tableSession) {
-    return NextResponse.json({ error: "Session not found" }, { status: 404 });
+  if (!closed) {
+    return NextResponse.json({ error: "Session not found or already closed" }, { status: 409 });
   }
-
-  // Update table session to CLOSED
-  await prisma.tableSession.update({
-    where: { id: sessionId },
-    data: { status: "CLOSED", closedAt: new Date() },
-  });
-
-  // Automatically mark any remaining running orders in this session as COMPLETED
-  await prisma.order.updateMany({
-    where: {
-      tableSessionId: sessionId,
-      status: { notIn: ["COMPLETED", "REJECTED"] },
-    },
-    data: { status: "COMPLETED", statusChangedAt: new Date() },
-  });
 
   return NextResponse.json({ success: true });
 }

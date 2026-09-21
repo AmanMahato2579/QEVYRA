@@ -34,11 +34,29 @@ QEVYRA/
 │   │   │   └── (its own README/AGENTS)
 │   │   └── README.md                  # what Order is, how to run it
 │   │
-│   ├── track/                         # QEVYRA Track (PLACEHOLDER — no code yet)
+│   ├── track/                         # QEVYRA Track — README placeholder; real code in qevyra/
 │   │   └── README.md
 │   │
-│   └── website/                       # QEVYRA Website (PLACEHOLDER — no code yet)
+│   └── website/                       # QEVYRA Website — README placeholder; real code in qevyra/
 │       └── README.md
+│
+└── qevyra/                            # UNIFIED QEVYRA app (Next.js): one app, one DB, all products
+    ├── src/
+    │   ├── modules/
+    │   │   ├── core/                  # platform core: plans, auth-guard, settings, activity
+    │   │   ├── website/               # website engine (services.ts) — Website v1 live
+    │   │   ├── track/                 # track engine (services.ts + catalog.ts) — Track v1 live
+    │   │   └── order/                 # order engine (bridges src/lib/db.ts god-module)
+    │   ├── app/
+    │   │   ├── (public)/              # landing, /b/{slug}, /r/{slug}…, /track, /track/{code}
+    │   │   ├── (business)/admin/      # admin shell: menu, orders, tables, bookings, website, track
+    │   │   ├── (superadmin)/super-admin/
+    │   │   └── api/                   # admin/, customer/, super-admin/, auth/
+    │   └── lib/                       # prisma, auth, plans, db.ts (god-module), utils
+    ├── prisma/                        # single schema + append-only migrations
+    ├── docs/                          # app-level docs (QEVYRA_PLAN, QEVYRA_TRACK, …)
+    ├── scripts/                       # prepare-db.mjs, e2e-smoke.mjs
+    └── vercel.json                    # own build pipeline
 ```
 
 ---

@@ -63,7 +63,7 @@ export default function AdminSidebar({ user, open = false, onNavigate, language 
             <ChefHat className="w-5 h-5 text-white" />
           </div>
           <div>
-            <div className="font-bold text-sm leading-tight">MenuQR</div>
+            <div className="font-bold text-sm leading-tight">QEVYRA</div>
             <div className="text-xs text-white/50 leading-tight">{t(language, "Admin Panel", "एडमिन प्यानल")}</div>
           </div>
         </div>

@@ -8,6 +8,8 @@ type AuthUser = {
   restaurantName?: string | null;
   businessId?: string | null;
   businessName?: string | null;
+  businessType?: string | null;
+  tokenVersion?: number;
 };
 
 const authSecret = process.env.AUTH_SECRET ?? process.env.NEXTAUTH_SECRET;
@@ -60,6 +62,8 @@ const u = user as AuthUser;
         token.restaurantSlug = u.restaurantSlug;
         token.restaurantName = u.restaurantName;
         token.businessId = u.businessId;
+        token.businessType = u.businessType;
+        token.tokenVersion = u.tokenVersion ?? 0;
 
         return token;
       }
@@ -79,6 +83,7 @@ const u = user as AuthUser;
         u.restaurantName = token.restaurantName as string | undefined;
         u.businessId = token.businessId as string | undefined;
         u.businessName = token.businessName as string | undefined;
+        u.businessType = token.businessType as string | undefined;
       }
 
       return session;

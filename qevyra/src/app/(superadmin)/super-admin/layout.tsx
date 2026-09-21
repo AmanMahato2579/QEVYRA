@@ -24,7 +24,7 @@ export default async function SuperAdminLayout({ children }: { children: React.R
             <div className="w-7 h-7 rounded-lg bg-purple-500 flex items-center justify-center">
               <BadgeCheck className="w-4 h-4 text-white" />
             </div>
-            <span className="font-bold">MenuQR · Super Admin</span>
+            <span className="font-bold">QEVYRA · Super Admin</span>
           </div>
           <form action={async () => { "use server"; await signOut({ redirectTo: "/login" }); }}>
             <button type="submit" className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-white/20 text-gray-300 text-sm hover:border-red-500/40 hover:text-red-400 transition-colors">

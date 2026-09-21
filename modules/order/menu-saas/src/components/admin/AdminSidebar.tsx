@@ -17,6 +17,7 @@ import {
   Bell,
   HandPlatter,
   CalendarCheck,
+  Ticket,
 } from "lucide-react";
 import InstallPWA from "./InstallPWA";
 
@@ -37,6 +38,7 @@ export default function AdminSidebar({ user, open = false, onNavigate, language 
     { href: "/admin", label: t(language, "Dashboard", "ड्यासबोर्ड"), icon: LayoutDashboard, exact: true },
     { href: "/admin/service", label: t(language, "Take Order", "अर्डर लिनुहोस्"), icon: HandPlatter },
     { href: "/admin/orders", label: t(language, "Orders", "अर्डरहरू"), icon: ClipboardList },
+    { href: "/admin/track", label: t(language, "Service Tracker", "सेवा ट्र्याकर"), icon: Ticket },
     { href: "/admin/menu", label: t(language, "Menu", "मेनु"), icon: UtensilsCrossed },
     { href: "/admin/tables", label: t(language, "Tables", "टेबलहरू"), icon: QrCode },
     ...(bookingsEnabled
@@ -61,7 +63,7 @@ export default function AdminSidebar({ user, open = false, onNavigate, language 
             <ChefHat className="w-5 h-5 text-white" />
           </div>
           <div>
-            <div className="font-bold text-sm leading-tight">MenuQR</div>
+            <div className="font-bold text-sm leading-tight">QEVYRA</div>
             <div className="text-xs text-white/50 leading-tight">{t(language, "Admin Panel", "एडमिन प्यानल")}</div>
           </div>
         </div>

@@ -4,7 +4,7 @@ import { t } from "@/lib/i18n";
 import { getAdminBookableServices } from "@/lib/db";
 import BookingServicesClient from "./BookingServicesClient";
 
-export const metadata = { title: "Booking Services – MenuQR Admin" };
+export const metadata = { title: "Booking Services – QEVYRA Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function BookingServicesPage() {

@@ -3,13 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
+import { httpUrlSchema } from "@/lib/utils";
 
 const patchSchema = z.object({
   categoryId: z.string().optional(),
   name: z.string().min(1).max(100).optional(),
   description: z.string().optional().nullable(),
   price: z.coerce.number().min(0).optional(),
-  imageUrl: z.string().url().optional().nullable().or(z.literal("")),
+  imageUrl: httpUrlSchema.optional().nullable().or(z.literal("")),
   isAvailable: z.boolean().optional(),
   hasSpicyOption: z.boolean().optional(),
   hasNoteOption: z.boolean().optional(),
@@ -136,6 +137,17 @@ export async function DELETE(
   const { itemId } = await params;
   const existing = await prisma.menuItem.findFirst({ where: { id: itemId, restaurantId } });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Items referenced by past orders cannot be hard-deleted (the FK is
+  // restrictive by design so order history keeps its snapshot). Tell the user
+  // instead of returning a 500 constraint error.
+  const usage = await prisma.orderItem.count({ where: { menuItemId: itemId } });
+  if (usage > 0) {
+    return NextResponse.json(
+      { error: "This item has been ordered before, so it can't be deleted. Set it as unavailable instead." },
+      { status: 409 }
+    );
+  }
 
   await prisma.menuItem.delete({ where: { id: itemId } });
   return NextResponse.json({ success: true });

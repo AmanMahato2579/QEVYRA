@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import type { Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/toast";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Save, Percent, Languages, CalendarCheck, Palette, Check } from "lucide-react";
+import { Loader2, Save, Percent, Languages, CalendarCheck, Palette, Check, KeyRound } from "lucide-react";
 import { LANGUAGE_OPTIONS, t } from "@/lib/i18n";
 import { BRAND_PALETTES } from "@/lib/brand";
 import { cn } from "@/lib/utils";
@@ -108,8 +109,44 @@ export default function SettingsClient({ restaurant }: Props) {
     document.documentElement.dataset.brand = key;
   };
 
+  const [pw, setPw] = useState({ current: "", next: "", confirm: "" });
+  const [pwSubmitting, setPwSubmitting] = useState(false);
+
+  const submitPassword = async () => {
+    if (pw.next.length < 8) {
+      toast({ title: "New password must be at least 8 characters", variant: "destructive" });
+      return;
+    }
+    if (pw.next !== pw.confirm) {
+      toast({ title: "New passwords do not match", variant: "destructive" });
+      return;
+    }
+    setPwSubmitting(true);
+    try {
+      const res = await fetch("/api/admin/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword: pw.current, newPassword: pw.next }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        toast({
+          title: "Password changed",
+          variant: "success",
+          description: "You will be signed out everywhere — please log in again.",
+        });
+        setPw({ current: "", next: "", confirm: "" });
+      } else {
+        toast({ title: "Could not change password", variant: "destructive", description: data.error });
+      }
+    } finally {
+      setPwSubmitting(false);
+    }
+  };
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)}>
+    <>
+      <form onSubmit={handleSubmit(onSubmit)}>
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Restaurant Information</CardTitle>
@@ -285,5 +322,64 @@ export default function SettingsClient({ restaurant }: Props) {
         </CardContent>
       </Card>
     </form>
+
+    {/* Change password */}
+    <Card className="mt-6">
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-1.5">
+          <KeyRound className="w-4 h-4 text-orange-500" /> Change Password
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-1.5">
+          <Label htmlFor="currentPassword">Current Password</Label>
+          <Input
+            id="currentPassword"
+            type="password"
+            autoComplete="current-password"
+            value={pw.current}
+            onChange={(e) => setPw((p) => ({ ...p, current: e.target.value }))}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="newPassword">New Password</Label>
+          <Input
+            id="newPassword"
+            type="password"
+            autoComplete="new-password"
+            value={pw.next}
+            onChange={(e) => setPw((p) => ({ ...p, next: e.target.value }))}
+            placeholder="At least 8 characters"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="confirmPassword">Confirm New Password</Label>
+          <Input
+            id="confirmPassword"
+            type="password"
+            autoComplete="new-password"
+            value={pw.confirm}
+            onChange={(e) => setPw((p) => ({ ...p, confirm: e.target.value }))}
+          />
+        </div>
+        <Button
+          type="button"
+          onClick={submitPassword}
+          disabled={pwSubmitting}
+          variant="outline"
+          className="border-orange-500 text-orange-600 hover:bg-orange-50"
+        >
+          {pwSubmitting ? (
+            <><Loader2 className="w-4 h-4 animate-spin" /> Changing...</>
+          ) : (
+            <>Update password</>
+          )}
+        </Button>
+        <p className="text-xs text-gray-400">
+          After a successful change you will be signed out from every device and must log in again.
+        </p>
+      </CardContent>
+    </Card>
+    </>
   );
 }

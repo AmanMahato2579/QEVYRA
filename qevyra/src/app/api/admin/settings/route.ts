@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { BRAND_COLOR_KEYS } from "@/lib/brand";
+import { httpUrlSchema } from "@/lib/utils";
 
 const brandColorSchema = z.string().refine((v) => BRAND_COLOR_KEYS.has(v), {
   message: "Unknown brand color",
@@ -16,7 +17,7 @@ const settingsSchema = z.object({
   currency: z.string().default("Rs."),
   openingHours: z.string().optional().nullable(),
   language: z.enum(["EN", "NEP"]).optional(),
-  logoUrl: z.string().url().optional().nullable(),
+  logoUrl: httpUrlSchema.optional().nullable(),
   taxRate: z.coerce.number().min(0).max(100).optional(),
   isTaxEnabled: z.boolean().optional(),
   serviceChargeRate: z.coerce.number().min(0).max(100).optional(),

@@ -7,13 +7,13 @@ folders changed already (same URLs, new grouping).
 
 | URL | What | Status |
 | :--- | :--- | :--- |
-| `/` | QEVYRA.com company website | Rebuild planned (Phase W1); currently MenuQR-branded marketing page |
+| `/` | QEVYRA.com company website | Built (Phase W1) — QEVYRA-branded, ₹ pricing packages |
 | `/login` | Auth sign-in | Exists |
 | `/inactive` | Account/subscription inactive notice | Exists |
-| `/b/{businessSlug}` | Business public website | Exists (Phase W2 adds service buttons) |
+| `/b/{businessSlug}` | Business public website (+ printable self-QR) | Exists (service buttons + QR) |
 | `/r/{restaurantSlug}` | Slug-level public menu (no table) | **Planned** (Phase O1) |
 | `/r/{restaurantSlug}/t/{tableToken}` | QR table menu (menu/cart/order/bill/book) | Exists |
-| `/track/{trackingCode}` | Public ticket tracking page | **Planned** (Phase T1) |
+| `/track/{trackingCode}` | Public ticket tracking page | Exists (Phase T1) — `/track` lookup honors `?business=` |
 
 ## Business admin (`(business)`)
 
@@ -25,7 +25,7 @@ folders changed already (same URLs, new grouping).
 | `/admin/orders`, `/admin/notifications`, `/admin/bookings`, `/admin/bookings/services` | Operations | Exists |
 | `/admin/settings` | Restaurant settings | Exists |
 | `/admin/website` | Business website editor | Exists |
-| `/admin/track/…` | Track SaaS admin (workflows, tickets) | **Planned** (Phase T2) |
+| `/admin/track/…` | Track SaaS admin (workflows, tickets) | Exists (Phase T2) |
 
 ## Platform admin (`(superadmin)`)
 
@@ -40,11 +40,14 @@ folders changed already (same URLs, new grouping).
 | `/api/auth/…` | NextAuth (credentials + JWT) |
 | `/api/admin/website` | Website engine: GET (auto-draft) / PATCH (upsert draft/publish) |
 | `/api/admin/…` (menu/tables/orders/bookings/etc.) | Order admin API (existing) |
-| `/api/admin/track/…` | Track admin API (**planned**, Phase T2) |
+| `/api/admin/track/…` | Track admin API (Phase T2) |
+| `/api/cron/daily-reset` | Nightly data reset (Vercel cron `15 19 * * *` UTC = 01:00 Kathmandu; also `npm run daily-reset`) |
 
 ## Middleware / route protection
 
 - `src/proxy.ts` (middleware) redirects unauthenticated `/admin` and `/super-admin` to `/login`;
   public pages are open.
 - Guards re-validate server-side per request (`auth-guard.ts`, business + subscription state).
-- Track admin (when built) must follow the same pattern: auth → tenant → plan capability.
+- Track admin follows the same pattern: auth → tenant → plan capability.
+- `/api/cron/daily-reset` requires either the unspoofable `x-vercel-cron` header or a matching
+  `CRON_SECRET` bearer token.

@@ -10,7 +10,7 @@ import MenuItemModal from "@/components/customer/MenuItemModal";
 import { useCustomerLanguage, LanguageToggle } from "@/hooks/use-customer-lang";
 import { ShoppingCart, BellRing, Loader2, AlertCircle, Receipt, ClipboardList, Phone, Copy, Check, CalendarCheck } from "lucide-react";
 import type { CartItem } from "@/types";
-import { loadCart, saveCart } from "@/lib/customer-storage";
+import { loadCart, saveCart, getOrCreateCustomerToken } from "@/lib/customer-storage";
 import { validBrandColor } from "@/lib/brand";
 
 interface Restaurant {
@@ -86,7 +86,10 @@ export default function CustomerMenu({ restaurant, table, tableSession, categori
   const checkSession = useCallback(async () => {
     if (!tableSession) return;
     try {
-      const res = await fetch(`/api/customer/sessions/${tableSession.id}/orders`, { cache: "no-store" });
+      const res = await fetch(`/api/customer/sessions/${tableSession.id}/orders`, {
+        cache: "no-store",
+        headers: { "x-customer-token": getOrCreateCustomerToken() },
+      });
       if (res.status === 404 || res.status === 410) {
         setSessionEnded(true);
       }

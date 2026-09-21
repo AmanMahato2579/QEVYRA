@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { t } from "@/lib/i18n";
 import SettingsClient from "./SettingsClient";
 
-export const metadata = { title: "Settings – MenuQR Admin" };
+export const metadata = { title: "Settings – QEVYRA Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {

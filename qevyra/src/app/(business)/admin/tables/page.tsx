@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { t } from "@/lib/i18n";
 import TablesClient from "./TablesClient";
 
-export const metadata = { title: "Tables – MenuQR Admin" };
+export const metadata = { title: "Tables – QEVYRA Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function TablesPage() {

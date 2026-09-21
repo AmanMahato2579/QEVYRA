@@ -7,7 +7,7 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('push', (event) => {
-  let data = { title: 'MenuQR', message: 'You have a new notification.', link: '/admin/notifications' };
+  let data = { title: 'QEVYRA', message: 'You have a new notification.', link: '/admin/notifications' };
   if (event.data) {
     try {
       data = { ...data, ...event.data.json() };

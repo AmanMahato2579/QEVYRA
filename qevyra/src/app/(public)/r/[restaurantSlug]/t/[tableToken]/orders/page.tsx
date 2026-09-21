@@ -1,6 +1,5 @@
 import { notFound, redirect } from "next/navigation";
 import { getRestaurantBySlug, getTableByToken, getActiveSession } from "@/lib/db";
-import { prisma } from "@/lib/prisma";
 import OrdersPageClient from "./OrdersPageClient";
 import { validBrandColor } from "@/lib/brand";
 
@@ -19,12 +18,9 @@ export default async function CustomerOrdersPage({ params }: Props) {
   const session = await getActiveSession(table.id, restaurant.id);
   if (!session) redirect(`/r/${restaurantSlug}/t/${tableToken}`);
 
-  // Get all orders for this session
-  const orders = await prisma.order.findMany({
-    where: { tableSessionId: session.id, restaurantId: restaurant.id },
-    include: { orderItems: true },
-    orderBy: { createdAt: "desc" },
-  });
+  // Order history is fetched client-side with the customer's own token, so a
+  // customer only ever sees the orders they placed (not the whole table's).
+  const orders: unknown[] = [];
 
   return (
     <div data-brand={validBrandColor(restaurant.brandColor)}>

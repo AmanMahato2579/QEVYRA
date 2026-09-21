@@ -38,12 +38,12 @@
 - Public slug menu `/r/{slug}` (planned Phase O1).
 - Bridges tenant through `Restaurant.businessId` (transition keeps `restaurantId` on order rows).
 
-## Track engine (`modules/track` — target; schema exists, code planned)
+## Track engine (`modules/track` — exists)
 
 - `Workflow` + `WorkflowStep` (process definition + status steps, includes "ready" terminal step),
   `Ticket` + `TicketStatusHistory` (immutable lifecycle), tracking code generation.
-- Track admin `/admin/track/**`; public page `/track/{trackingCode}`.
-- Capabilities via core plan keys (`business_track`, workflow/ticket limits).
+- Track admin `/admin/track/**`; public page `/track` + `/track/{trackingCode}`.
+- Capabilities via core plan keys (`business_track`, `workflows` limit).
 
 ## Modules' current source of truth (reality today)
 
@@ -52,4 +52,4 @@
 | core | `src/lib/plans.ts`, `plan-catalog.ts`, `settings.ts`, `activity.ts`, `auth.ts`, `auth-guard.ts`, `db.ts` (mixed) |
 | website | `src/modules/website/services.ts` + `(public)/b/[slug]/page.tsx` + api/admin/website + admin/website |
 | order | `src/lib/db.ts` god-module spanning ALL order/booking/notification queries (refactor tracked; do not casually rewrite) |
-| track | DB models only (`Workflow`, `WorkflowStep`, `Ticket`, `TicketStatusHistory`) |
+| track | `src/modules/track/services.ts` + `catalog.ts` (server engine) + api/admin/track/** + admin/track/** + (public)/track/** |

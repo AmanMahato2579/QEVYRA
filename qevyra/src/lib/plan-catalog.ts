@@ -45,7 +45,10 @@ export interface LimitDef {
   label: string;
 }
 
-export const LIMIT_CATALOG: LimitDef[] = [{ key: "qrTables", label: "Maximum QR tables" }];
+export const LIMIT_CATALOG: LimitDef[] = [
+  { key: "qrTables", label: "Maximum QR tables" },
+  { key: "workflows", label: "Maximum workflows" },
+];
 
 export const PLAN_IDS = ["BRONZE", "SILVER", "STAR"] as const;
 export type PlanId = (typeof PLAN_IDS)[number];

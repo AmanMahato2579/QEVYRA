@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { formatCurrency, formatDate, getOrderStatusColor } from "@/lib/utils";
 import { t, orderStatusLabel } from "@/lib/i18n";
 import { useCustomerLanguage, LanguageToggle } from "@/hooks/use-customer-lang";
+import { getOrCreateCustomerToken } from "@/lib/customer-storage";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, CheckCircle2, Clock, ChefHat, XCircle, Loader2 } from "lucide-react";
 
@@ -58,7 +59,10 @@ export default function OrdersPageClient({ restaurant, table, orders: initialOrd
 
   const refreshOrders = useCallback(async () => {
     try {
-      const res = await fetch(`/api/customer/sessions/${tableSession.id}/orders`, { cache: "no-store" });
+      const res = await fetch(`/api/customer/sessions/${tableSession.id}/orders`, {
+        cache: "no-store",
+        headers: { "x-customer-token": getOrCreateCustomerToken() },
+      });
       if (res.ok) {
         const data = await res.json();
         const previouslyRejected = new Set(

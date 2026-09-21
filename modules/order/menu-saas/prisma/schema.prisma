@@ -67,6 +67,7 @@ model Restaurant {
   users                  User[]
   bookableServices       BookableService[]
   bookings               Booking[]
+  trackTickets           TrackTicket[]
 
   @@index([slug])
 }
@@ -337,6 +338,7 @@ enum NotificationType {
   ASSISTANCE_REQUEST
   ORDER_STATUS
   NEW_BOOKING
+  NEW_TRACK_TICKET
 }
 
 enum BookableServiceType {
@@ -393,4 +395,65 @@ model PlatformSetting {
   key       String   @id
   value     String
   updatedAt DateTime @updatedAt
+}
+
+// ─── QEVYRA Track ────────────────────────────────────────────────────────────
+// Service-ticket tracking for garages, tailors, repair shops, dry cleaners, etc.
+// Tenant-scoped by restaurantId during Stage 1 (renamed to businessId in Stage 2).
+
+model TrackTicket {
+  id              String            @id @default(cuid())
+  restaurantId    String
+  ticketCode      String            @unique // e.g. GAR-4821
+  serviceType     TrackServiceType  @default(OTHER)
+  customerName    String
+  customerPhone   String?
+  itemDescription String            // "Pulsar 220 – engine service"
+  internalNote    String?           // staff-only note
+  estimatedPrice  Decimal?          @db.Decimal(10, 2)
+  finalPrice      Decimal?          @db.Decimal(10, 2)
+  priceNote       String?           // e.g. "added spare parts"
+  currency        String            @default("Rs.")
+  status          TrackTicketStatus @default(RECEIVED)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  readyAt         DateTime?
+  deliveredAt     DateTime?
+  restaurant      Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  events          TrackTicketEvent[]
+
+  @@index([restaurantId])
+  @@index([restaurantId, status])
+  @@index([ticketCode])
+}
+
+model TrackTicketEvent {
+  id          String            @id @default(cuid())
+  ticketId    String
+  fromStatus  TrackTicketStatus?
+  toStatus    TrackTicketStatus
+  note        String?
+  actorNote   String?           // staff comment added at the time of update
+  createdAt   DateTime          @default(now())
+  ticket      TrackTicket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+}
+
+enum TrackTicketStatus {
+  RECEIVED
+  INSPECTING
+  IN_PROGRESS
+  QUALITY_CHECK
+  READY
+  DELIVERED
+  CANCELLED
+}
+
+enum TrackServiceType {
+  GARAGE
+  TAILOR
+  ELECTRONICS_REPAIR
+  DRY_CLEAN
+  OTHER
 }

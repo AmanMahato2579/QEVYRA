@@ -83,4 +83,8 @@ export interface AdminUser {
   restaurantId: string | null;
   restaurantSlug: string | null;
   restaurantName: string | null;
+  businessId?: string | null;
+  businessName?: string | null;
+  /** BusinessType string ("RESTAURANT", "TAILOR", …) — drives product routing. */
+  businessType?: string | null;
 }

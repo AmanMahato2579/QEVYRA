@@ -1,29 +1,29 @@
 # QEVYRA Website — QEVYRA.com + Business Websites
 
-> Execution plan for the public website axis (phases W1 and W2 in QEVYRA_PLAN.md). We have NOT
-> built W1/W2 yet; what already runs is listed under QEVYRA_PLAN.md §7.
+> Execution plan for the public website axis (phases W1 and W2 in QEVYRA_PLAN.md). W1 and W2 are
+> built (see QEVYRA_PLAN.md §7); this file tracks remaining website work.
 
 ## 1. QEVYRA.com — company website
 
-Rebuild `/` (`src/app/(public)/page.tsx`) from the MenuQR marketing page into a QEVYRA company site.
+Rebuilt `/` (`src/app/(public)/page.tsx`) from the old MenuQR marketing page into a QEVYRA company site.
 
 **Status: built (Phase W1).** `/` now renders QEVYRA branding, hero, products (Website/Order/Track),
-how-it-works, plans (Bronze/Silver/Star), contact, and a login CTA. Root metadata,
-`public/manifest.json` (`start_url: "/"`, name/short_name QEVYRA) and the `/login` brand text were
-updated in the same change. Verified: dev-smoke returned 200 with the expected sections.
+how-it-works, pricing packages (₹ offers from `src/lib/packages.ts`), contact, and a login CTA. Root
+metadata, `public/manifest.json` (`start_url: "/"`, name/short_name QEVYRA) and the `/login` brand
+text were updated in the same change. Verified: dev-smoke returned 200 with the expected sections.
 
 Sections:
 - Header: QEVYRA branding, main nav (Products, Pricing, Contact), Login / Business CTA.
 - Hero: explain the platform in one sentence ("One QR + link for your website, menu and service tracking").
 - Products: three cards — QEVYRA Website, QEVYRA Order, QEVYRA Track (each: what it does, who it's for, primary CTA).
 - How it works: the 3-experience flow diagram (QEVYRA.com → business website → menu/tracking page).
-- Pricing/CTA + Contact.
+- Pricing: four packages (Website ₹2,500/1.5y; Website+QR menu ₹2,500/y; Restaurant setup+monthly; Tracking custom) with mailto CTA on custom plans.
 - Footer: brand, terms/privacy placeholders, login link.
 
 Rules unchanged: presentation-only, no per-industry features, no SaaS logic in this page.
-Remaining branding cleanups (MenuQR in admin metadata/headers, QR poster, absent from the company
-page surface) are tracked as a separate cross-cutting rename, per Arch Rules §E.21 (one axis per
-pass).
+The MenuQR→QEVYRA cross-cutting rename (admin metadata/headers, table-QR footer, super-admin layout,
+platform default name, push subject, service worker) shipped 2026-09-21; no `MenuQR` strings remain
+in `src`.
 
 ## 2. Business website — template system (Phase W2, planned)
 

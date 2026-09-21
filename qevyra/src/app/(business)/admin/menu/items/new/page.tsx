@@ -6,7 +6,7 @@ interface Props {
   searchParams: Promise<{ categoryId?: string }>;
 }
 
-export const metadata = { title: "Add Menu Item – MenuQR Admin" };
+export const metadata = { title: "Add Menu Item – QEVYRA Admin" };
 
 export default async function NewMenuItemPage({ searchParams }: Props) {
   const params = await searchParams;

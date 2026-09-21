@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import MenuPageClient from "./MenuPageClient";
 
-export const metadata = { title: "Menu – MenuQR Admin" };
+export const metadata = { title: "Menu – QEVYRA Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function MenuPage() {

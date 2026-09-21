@@ -1,5 +1,21 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { z } from "zod";
+
+/** URL that must use http/https — blocks javascript: and other schemes. */
+export const httpUrlSchema = z
+  .string()
+  .refine(
+    (value) => {
+      try {
+        const parsed = new URL(value);
+        return parsed.protocol === "http:" || parsed.protocol === "https:";
+      } catch {
+        return false;
+      }
+    },
+    { message: "URL must start with http:// or https://" }
+  );
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

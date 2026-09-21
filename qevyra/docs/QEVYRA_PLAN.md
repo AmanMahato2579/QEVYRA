@@ -1,6 +1,16 @@
 # QEVYRA Platform — Master Plan
 
-> Status: **PLAN (not yet executed).** This document describes what we are going to build and how.
+> Status: **in execution.** W1 (landing), W2 (service-button wiring), T1 (track public page) and T2
+> (track admin + APIs) are DONE (verified — see §7). O1, A1, A2 remain. The owner-approved
+> business-plan fixes landed 2026-09-21: nightly 1 AM data reset, MenuQR→QEVYRA branding sweep,
+> ₹ pricing on the landing + super-admin package picker (sets plan/expiry, publish-on-create),
+> no password-hash in the create-shop API, and a printable QR on every business website
+> (all verified — see §7).
+> A second 2026-09-21 batch (atomicity/security hardening, then standard-site essentials) landed and
+> verified: atomic order/ticket math, idempotent order retries, guarded transitions + delete guards,
+> login throttling + forced logout on password change, rate limits, URL-scheme validation, security
+> headers, standard pages (404/error/loading, /api/health, terms/privacy/contact, robots/sitemap),
+> owner self-service password change, and backup/restore scripts + ops runbook (see §7).
 > Nothing in this doc is a claim that a feature already works — see [§7 Verified vs Planned](#7-verified-vs-planned).
 > Construction happens in explicit phases, one axis per phase, verifying lint/typecheck/build after each.
 
@@ -43,8 +53,10 @@ QEVYRA.com                    ← 1) Company website (ONE, represents QEVYRA its
 - Contains: QEVYRA branding, About, Services (Website / Order / Track), Pricing/contact CTA,
   contact, client info where appropriate, and a login entry point.
 - **No** restaurant-specific or garage-specific functionality lives here.
-- Current state: the `/` landing page. Today it is a stale "MenuQR / Digital Menus & QR Ordering"
-  marketing page (`src/app/(public)/page.tsx`, reads `MenuQR` brand). This is the page to rebuild.
+- Current state: the `/` landing page is rebuilt as the QEVYRA company site — hero, products
+  (Website/Order/Track), "See it live" demo links, how-it-works, **pricing packages with ₹ offers**
+  (Website ₹2,500/1.5y, Website+QR menu ₹2,500/y, Restaurant setup+monthly, Tracking custom),
+  contact CTA, login link (`src/app/(public)/page.tsx`, pricing data in `src/lib/packages.ts`).
 
 ### 2.2 Business public website — `b/{businessSlug}`
 
@@ -60,9 +72,11 @@ QEVYRA.com                    ← 1) Company website (ONE, represents QEVYRA its
   - Order enabled + ordering feature → same button (menu page itself shows ordering).
   - Track enabled (+ a Workflow linked) → **Track Service** → Track public page.
   - Neither → **no service section**, plain professional business website.
-- Current state: `b/[slug]` exists and renders a themed single-pager (`/b/demo-restaurant` verified
-  returning 200 with demo content). It reads Business + Website. It does **not yet** derive service
-  buttons from enabled modules — that wiring is planned (§4.1, Phase W2).
+- Current state: `b/[slug]` exists and renders a themed single-pager (`/b/demo-restaurant`,
+  `/b/sitas-tailoring` verified returning 200 with demo content). It reads Business + Website and
+  **derives service buttons from enabled modules** (Phase W2 done). Every site also renders a
+  **printable QR of its own `/b/{slug}` URL** (customer-facing). Super-admin creation can
+  **publish the website immediately** (`publishWebsite`).
 
 ### 2.3 Public service pages (Order menu, Track tracking page)
 
@@ -71,8 +85,9 @@ QEVYRA.com                    ← 1) Company website (ONE, represents QEVYRA its
   flow: menu → cart → order → confirmation). A **slug-level menu without a table**
   (`/r/{restaurantSlug}`) is planned so the website "View Menu" button and non-QR visitors have an
   entry (view-only for BRONZE; ordering handled through the existing table/session flow).
-- **Track public page** `/track/{trackingCode}` is **planned** (schema exists: `Workflow`,
-  `WorkflowStep`, `Ticket`, `TicketStatusHistory`; UI does not).
+- **Track public page** `/track/{trackingCode}` is **implemented** (schema: `Workflow`,
+  `WorkflowStep`, `Ticket`, `TicketStatusHistory`), with a `/track` lookup page that honors
+  `?business=` for the CTAs on business websites.
 
 ## 3. Services / subscriptions (source of truth: business + plan)
 
@@ -114,10 +129,10 @@ change. No unrequested refactors. Never break the deployed product at `modules/o
 | Phase | Name | Work |
 | :--- | :--- | :--- |
 | **W1** | QEVYRA.com (company site) | Rebuild `/` landing as QEVYRA company site (branding, products: Website/Order/Track, pricing CTA, contact, login link). Keeps `/login`, `/inactive`. Presentation-only; no SaaS logic. |
-| **W2** | Business website service wiring | Derive buttons from enabled modules: Query linked data (Restaurant exists? Workflow exists? features) → render View Menu / Track Service / none. One template for all business types. Add optional social/review links to the Business/Website model (planned schema change). |
+| **W2** | Business website service wiring | ✅ DONE — `b/{slug}` derives buttons from enabled modules (Restaurant exists? Workflow exists? features) → renders View Menu / Track Service / none. One template for all business types. Verify via `/b/demo-restaurant` + `/b/sitas-tailoring` HTML. |
 | **O1** | Order slug-level menu | Add `/r/{restaurantSlug}` public menu page (no table token). BRONZE → view-only. SILVER/STAR → shows menu + CTAs that route into the existing table-session/cart flows. Reuse existing menu APIs/components. |
-| **T1** | Track engine — public page | `/track/{trackingCode}` (and `b/{slug}/tickets` entry): business name, service type, current status, stepped timeline (Received → Processing → Ready → Completed), contact/WhatsApp button, uses `Ticket`/`WorkflowStep`/`TicketStatusHistory`. |
-| **T2** | Track SaaS admin | Track admin under `/admin/track/…`: workflows/steps editor, service types, customers, create/update ticket, tracking code, status changes (writes `TicketStatusHistory`), subscription-aware (features + workflow/ticket limits). |
+| **T1** | Track engine — public page | ✅ DONE — `/track/{trackingCode}` + `/track` lookup (with `?business=` greeting): business name, service type, current status, stepped timeline, contact/WhatsApp, tracking QR. Uses `Ticket`/`WorkflowStep`/`TicketStatusHistory`; bad code → 404. |
+| **T2** | Track SaaS admin | ✅ DONE — `/admin/track` workflows/steps editor (limit-gated) + `/admin/track/tickets` create/advance/cancel + track-code QR; `/api/admin/track/**` tenant-scoped APIs; status changes write `TicketStatusHistory`. |
 | **A1** | Core consolidation | Move shared logic (auth, subscription, QR helpers, activity) into `modules/core`; Order stays under `modules/order` facade over the existing `src/lib/db.ts` god-module (refactor tracked, proceed slice-by-slice only when a change needs it). |
 | **A2** | Final audit + docs + handoff | Run the audit checklist (§6); update all `docs/*`.
 
@@ -169,13 +184,27 @@ Held to "do not claim something works unless you actually verified it". Legend:
 | `/b/{slug}` public business website renders demo business (200, demo content) | VERIFIED (dev server smoke test) |
 | QR table flow `/r/{slug}/t/{token}` (menu → cart → order) | VERIFIED (existing working product path) |
 | Login page 200; unauthenticated `/admin` redirects to login | VERIFIED (dev server smoke test) |
-| Seed idempotent; Business→Restaurant→owner→Website→Workflow MOMO linked | VERIFIED (DB queries after seed) |
+| Seed idempotent; Business→Restaurant→owner→Website→Workflow MOMO linked; demo tickets MOMO-0001/0002; Sita's Tailoring (track-only tenant) | VERIFIED (DB queries + seed run) |
 | Subscription logic centralized in `plans.ts` (`getEffectiveAccess`, `canUse`, `enforceSubscriptionState`, `loadOperationalRestaurant`) | VERIFIED (code + tsc/build green) |
 | Website editor `/admin/website` (theme picker, content sections, publish) + `/api/admin/website` | EXISTS (built, typecheck/build pass; editor UI itself smoke-tested) |
-| `/b/{slug}` service-button derivation from enabled modules | PLANNED (Phase W2) |
-| QEVYRA.com rebuild (company site) | **W1 (done)** — `/` is QEVYRA-branded: hero, products (Website/Order/Track), how-it-works, plans (Bronze/Silver/Star, no GOLD), contact, login; root metadata + manifest + `/login` brand updated; verified 200 + content via dev smoke |
+| `/b/{slug}` service-button derivation from enabled modules | VERIFIED (View Menu on demo-restaurant, Track Service on sitas-tailoring, neither without data — HTML smoke test) |
+| QEVYRA.com rebuild (company site) | VERIFIED — `/` is QEVYRA-branded: hero, products (Website/Order/Track), "See it live" demo links, how-it-works, plans (Bronze/Silver/Star, no GOLD), contact, login; root metadata + manifest + `/login` brand updated; verified 200 + content via dev smoke |
 | Slug-level menu `/r/{restaurantSlug}` | PLANNED (Phase O1) |
-| Track public page `/track/{code}` | PLANNED (Phase T1) — DB schema exists |
-| Track SaaS admin `/admin/track/*` | PLANNED (Phase T2) |
-| `modules/core`, `modules/order` real folders | PLANNED (Phase A1) — only `modules/website` exists |
+| Track public page `/track/{code}` + `/track` lookup | VERIFIED (Phase T1 done) — `/track/FIT-0001`, `/track/MOMO-0001` 200 with timeline; bad code → 404; `?business=` greeting honored |
+| Track SaaS admin `/admin/track/*` + APIs | VERIFIED (Phase T2 done) — workflows CRUD + tickets pages 200 behind auth; `/api/admin/track/**` tenant-scoped; limit-gated |
+| `modules/core`, `modules/order` real folders | PLANNED (Phase A1) — real module folders: `modules/website`, `modules/track` |
 | GOLD hidden | VERIFIED (absent from PLAN_IDS/configs) |
+| Landing pricing = real owner-visible packages (₹2,500 etc.) | VERIFIED — `/` shows ₹ prices, package names, mailto contact (HTML smoke test) |
+| Super-admin create = product package picker (plan + auto expiry + publish toggle) | VERIFIED end-to-end — POST `/api/super-admin/restaurants` with `packageId: "website"`, `publishWebsite: true` returned 201, website immediately live (200), DELETE cascaded |
+| Create-shop API never returns the owner password hash | VERIFIED — response contains no `passwordHash` key |
+| Nightly data reset at 01:00 Kathmandu | VERIFIED — `/api/cron/daily-reset` (401 unauthenticated), `npm run daily-reset` script, and Vercel cron `15 19 * * *` UTC; live run against dev DB reported clean counts |
+| MenuQR → QEVYRA branding sweep | VERIFIED — no `MenuQR` strings left in `src` (sidebar, admin metadata titles, table-QR footer, super-admin layout, inactive page, platform default, push subject, service worker) |
+| Atomic money/order math (create/update/bill, locks, service charge stored on Order, guarded transitions) | VERIFIED — schema + migrations applied; `npx tsc --noEmit` green after all edits; migrations `20260921123000_audit_atomicity_2026`, `20260921124500_order_service_charge` in `_prisma_migrations` |
+| Atomic ticket numbering (WorkflowSequence, starts at 1000) + guarded ticket transitions | VERIFIED — code + tsc green |
+| Idempotent order retries (`clientRequestId`, unique per session) + token-scoped history API | VERIFIED — code + tsc green |
+| Login brute-force throttle, password-change/ reset → forced logout (tokenVersion), UUID customer tokens | VERIFIED — code + tsc green |
+| Rate limits (order/bookings/assist) with shared helper | VERIFIED — code + tsc green |
+| URL-scheme validation (http/https) on public image/logo URLs + security headers (nosniff, frame, referrer, permissions) | VERIFIED — code + tsc green |
+| Standard pages: 404, global-error, loading, /api/health, /terms /privacy /contact, robots.txt, sitemap.xml | EXISTS/VERIFIED — files written, landing footer links added; final page smoke pending in the closing verify pass |
+| Owner self-service password change (`/admin/settings` card + API) | VERIFIED — code + tsc + lint green |
+| Backup/restore scripts + ops runbook | VERIFIED — `scripts/backup-db.mjs` produced a dump; dump→scratch-DB restore reproduced all 3 migrations + hardened schema; `docs/QEVYRA_OPS.md` written |

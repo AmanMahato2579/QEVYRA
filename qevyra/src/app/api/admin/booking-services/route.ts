@@ -3,13 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminBookableServices } from "@/lib/db";
+import { httpUrlSchema } from "@/lib/utils";
 
 const serviceSchema = z.object({
   name: z.string().trim().min(1).max(100),
   type: z.enum(["ROOM", "POOL", "TABLE_GAME", "ADVENTURE", "OTHER"]),
   description: z.string().max(1000).optional().nullable(),
   price: z.coerce.number().min(0).default(0),
-  imageUrl: z.string().url().optional().nullable().or(z.literal("")),
+  imageUrl: httpUrlSchema.optional().nullable().or(z.literal("")),
   capacity: z.coerce.number().int().min(1).max(500).default(2),
   venueCount: z.coerce.number().int().min(1).max(100).default(1),
   slotDurationMinutes: z.coerce.number().int().min(30).max(1440).default(60),

@@ -1,63 +1,85 @@
 # QEVYRA Track — Status Tracking SaaS
 
-> Execution plan for the Track axis (Phases T1 and T2). DB schema EXISTS; the UI/admin/API are
-> planned. Nothing in this doc is claimed as working until phases complete.
+> Status: **T1 + T2 implemented** (public tracking page + Track admin + tenant-scoped APIs).
+> Earlier "planned" notes below are now descriptions of the shipped behaviour.
+> Always re-verify against `docs/CURRENT_SYSTEM_AUDIT.md` before changing.
 
 ## What Track is for
 
 Businesses whose customers need to know the status of a service: laundry, cleaning, tailoring,
 repair, garages, electronics. **One configurable engine**, not one app per industry.
 
-## Data model (exists in prisma/schema.prisma — verified)
+## Data model (prisma/schema.prisma — unchanged by this work)
 
-- `Workflow` — process definition per business (`codePrefix`, name, description, isActive).
+- `Workflow` — process definition per business (`codePrefix`, name, description, isActive) with
+  `@@unique([businessId, codePrefix])` so prefixes are unique per tenant.
 - `WorkflowStep` — ordered steps; `isReadyStep` marks the terminal "ready/collect" step so a ticket
   timeline can show completion without guessing.
-- `Ticket` — one job (`trackingCode` unique like `LAU-4821`, businessId, workflowId, customer
-  name/phone, itemSummary, status, currentStepId, timestamps).
+- `Ticket` — one job (`trackingCode` unique like `FIT-0001`, businessId, workflowId, customer
+  name/phone, itemSummary, status, currentStepId, timestamps, completedAt).
 - `TicketStatusHistory` — immutable transition log (from/to step+status, note, createdAt).
 - `TicketStatus` enum: PLACED → IN_PROGRESS → READY → COMPLETED (+ CANCELLED).
-- Seeded demo data: `MOMO` workflow under the demo business (verified at seed).
 
-## Phase T1 — public tracking page `/track/{trackingCode}` (planned)
+## Module (server-owned, `src/modules/track/`)
 
-Customer sees:
-- Business name; tracking code; service/workflow name.
-- Current status + stepped timeline:
-  `✓ Received   ✓ Processing   ● Ready   ○ Completed`
-- Relevant info (item summary, notes), contact business (phone / WhatsApp when enabled).
+- `services.ts` — `TrackError`, `normalizeCodePrefix`, `buildTrackingCode`, workflow CRUD
+  (`getWorkflows`/`getWorkflow`/`createWorkflow`/`updateWorkflow`/`deleteWorkflow`), ticket ops
+  (`createTicket`/`advanceTicket`/`cancelTicket`/`listTickets`/`getTicketCounts`/`getTicketDetails`/
+  `getPublicTicket`). Every query is filtered by `businessId`. Ticket actions write history rows in
+  a transaction.
+- `catalog.ts` — pure, client-safe `TRACK_STATUS_META`, `trackStatusMeta()`, `WORKFLOW_LIMIT_KEY`,
+  `TicketAction`. No server imports (safe in client components).
 
-Rules: read-only from Ticket/Workflow/History; never mutates. `getPublicTicket(trackingCode)`
-resolves ticket → business → workflow/steps → history. Not found → clear 404 ("invalid code").
-Business website "Track Service" button (Phase W2) links here; the website module implements no
-tracking logic.
+## Phase T1 — public tracking page (implemented)
 
-## Phase T2 — Track SaaS admin `/admin/track/**` (planned)
+- `/track` — lookup landing (inputs a code, redirects to `/track/{CODE}`); reads `?business=` to
+  greet the visitor by business name (used by "Track Service"/"Track your order" buttons on
+  business websites).
+- `/track/[code]` — live status page: business name, tracking code, workflow name, status, stepped
+  timeline (history chips), item summary/notes/customer, contact (WhatsApp + call + business
+  website), and a QR that encodes the live URL. Dark themed via `data-brand` + `menu-hero-gradient`.
+  `TicketLive.tsx` polls by `router.refresh()` every ~6s so progress shows in near-real-time.
 
-Under the existing business admin shell (`(business)` group), tenant-scoped by `businessId`,
-guarded like Order admin (auth → business active → subscription capability `business_track` +
-limits). Screens:
+Rules: read-only from Ticket/Workflow/History; never mutates. Not found → clear 404. Tenant-safe
+(`getPublicTicket` resolves by tracking code only — codes are globally unique).
 
-- **Dashboard**: open tickets, status counts, recent activity.
-- **Workflows**: create/edit workflow + steps (name, order, ready-step flag), choose code prefix.
-- **Customers**: create/select customer (global Customer + BusinessCustomer link).
-- **Tickets**: create ticket (workflow, customer, item summary) → auto tracking code; list/filter;
-  update status/step (writes TicketStatusHistory immutably).
-- **Settings/Subscription**: business info, plan state (shared via core).
+## Phase T2 — Track SaaS admin (implemented)
 
-API shape (planned): `/api/admin/track/workflows`, `/api/admin/track/tickets`,
-`/api/admin/track/tickets/[id]/status` — all tenant-scoped, zod-validated, server-side owned.
+Guarded by `requireBusinessAdmin` (redirects `/inactive`) + subscription capability
+`business_track` (`getEffectiveAccess`/`canUse`); workflow creation respects the `workflows` plan
+limit (BRONZE 1 / SILVER 2 / STAR 10). Nav item "Track" appears only when the capability is active.
 
-## Boostrapping rules
+- `/admin/track` — **Workflows**: create/edit/delete workflow + steps (name, order, ready-step
+  flag), choose code prefix (normalized, unique per business); delete refused while tickets exist;
+  shows workflow → ticket counts, active toggle, plan limit counter.
+- `/admin/track/tickets` — **Tickets**: new-ticket form (workflow, customer name/phone, item
+  summary, notes) → auto tracking code; status filter chips (PLACED / IN_PROGRESS / READY /
+  COMPLETED / CANCELLED); per-ticket actions advance (next step / READY / COMPLETED) and cancel;
+  copy tracking code + QR toggle.
 
-- Use existing workflow/ticket models; add plans/limits for Track via core feature/limit keys
-  (`business_track` already in catalog; planned additions: `workflows` count, ticket features —
-  see QEVYRA_SUBSCRIPTIONS.md, decision with the user).
+APIs (all tenant-scoped via `loadBusinessContext`, zod-validated, 403 without capability,
+429 over workflow limit, 409 on duplicate code prefix):
+- `GET|POST /api/admin/track/workflows`, `PATCH|DELETE /api/admin/track/workflows?id=`
+- `GET|POST /api/admin/track/tickets` (`?status=` filter)
+- `PATCH /api/admin/track/tickets/[id]` `{ action: "advance" | "cancel" }`
 
-## Definition of done (T1+T2)
+Deviation from the original plan: tickets capture customer name/phone inline rather than a
+global `Customer`/`BusinessCustomer` link (schema doesn't require it and the admin flows the seed
+data). Revisit only if cross-business customer history is required product.
 
-- `/track/MOMO-…`-style page shows timeline from seeded data (200).
-- Track admin creates a ticket, moves its status, history rows appear.
-- Tenant isolation: ticket queries always filtered by businessId (test: another business cannot
-  read the ticket — verified via audit §6-11).
-- lint + typecheck + build green; docs/QEVYRA_TRACK.md updated in same change.
+## Seeded demo data
+
+- `MOMO` workflow (demo restaurant): tickets `MOMO-0001` (IN_PROGRESS, "Preparing", 2 history rows)
+  and `MOMO-0002` (PLACED).
+- **Sita's Tailoring** — a track-only tenant (no Restaurant/menu): published Website (theme-royal),
+  `FIT` "Garment stitching" workflow (4 steps, ready-step "Ready for pickup"), ticket `FIT-0001`
+  (IN_PROGRESS at "Stitching"). Proves the universal tenant (Website + Track without ORDER).
+
+## Definition of done (verified)
+
+- [x] `/track/FIT-0001`, `/track/MOMO-0001` return 200 with timeline from seeded data; bad code → 404.
+- [x] Track admin creates a ticket, advances/cancels, history rows written transactionally.
+- [x] Tenant isolation: every ticket/workflow query filtered by `businessId` (workflows API 404s for
+      other tenants; `getPublicTicket` uses globally-unique codes).
+- [x] lint + typecheck + build green; `npm run build` lists `/track`, `/track/[code]`,
+      `/admin/track`, `/admin/track/tickets`; e2e smoke 34/34.

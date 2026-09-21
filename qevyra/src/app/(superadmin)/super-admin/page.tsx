@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 async function getOverview() {
   const now = new Date();
 
-  const [businessCount, activeCount, starCount, expiredCount, expiringSoon, expired, starList, planBreakdown, recentActivity] =
+  const [businessCount, activeCount, starCount, expiredCount, expiringSoon, expired, starList, planBreakdown, typeBreakdown, recentActivity] =
     await Promise.all([
       prisma.business.count(),
       prisma.business.count({ where: { isActive: true } }),
@@ -39,11 +39,26 @@ async function getOverview() {
         orderBy: { starNumber: "asc" },
       }),
       prisma.business.groupBy({ by: ["plan"], _count: true }),
+      prisma.business.groupBy({ by: ["type"], _count: true }),
       listActivity({ limit: 8 }),
     ]);
 
-  return { now, businessCount, activeCount, starCount, expiredCount, expiringSoon, expired, starList, planBreakdown, recentActivity };
+  return { now, businessCount, activeCount, starCount, expiredCount, expiringSoon, expired, starList, planBreakdown, typeBreakdown, recentActivity };
 }
+
+const BUSINESS_TYPE_LABELS: Record<string, string> = {
+  RESTAURANT: "Restaurant / cafe",
+  HOTEL: "Hotel",
+  HOMESTAY: "Homestay",
+  RETAIL: "Retail / shop",
+  SERVICE: "Service shop",
+  TAILOR: "Tailor",
+  DRY_CLEANING: "Dry cleaning",
+  GARAGE: "Garage / showroom",
+  CLEANING: "Cleaning service",
+  REPAIR: "Repair service",
+  OTHER: "Other",
+};
 
 function daysUntil(date: Date, now: Date): number {
   return Math.ceil((date.getTime() - now.getTime()) / 86400000);
@@ -74,7 +89,47 @@ export default async function OverviewPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Building2 className="w-4 h-4 text-gray-300" />
+            <h2 className="font-bold">Business mix by type</h2>
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+            {o.typeBreakdown.length === 0 ? (
+              <p className="text-sm text-gray-500 col-span-2">No businesses yet.</p>
+            ) : (
+              o.typeBreakdown.map((t) => (
+                <div key={t.type} className="flex items-center justify-between text-sm">
+                  <span className="text-gray-300">{BUSINESS_TYPE_LABELS[t.type] ?? t.type}</span>
+                  <span className="font-bold text-gray-100">{t._count}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <Building2 className="w-4 h-4 text-gray-300" />
+            <h2 className="font-bold">Business mix by plan</h2>
+          </div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+            {o.planBreakdown.length === 0 ? (
+              <p className="text-sm text-gray-500 col-span-2">No plan data yet.</p>
+            ) : (
+              o.planBreakdown.map((p) => (
+                <div key={p.plan} className="flex items-center justify-between text-sm">
+                  <span className={`font-medium ${p.plan === "STAR" ? "text-purple-300" : p.plan === "SILVER" ? "text-gray-200" : "text-orange-300"}`}>
+                    {p.plan}
+                  </span>
+                  <span className="font-bold text-gray-100">{p._count}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
         <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
           <div className="flex items-center gap-2 mb-4">
             <StarIcon className="w-4 h-4 text-purple-300" />
@@ -93,7 +148,9 @@ export default async function OverviewPage() {
             </div>
           )}
         </div>
+      </div>
 
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
           <div className="flex items-center gap-2 mb-4">
             <AlertTriangle className="w-4 h-4 text-amber-400" />

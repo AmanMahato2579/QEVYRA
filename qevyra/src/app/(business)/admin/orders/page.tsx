@@ -3,7 +3,7 @@ import { getAdminSessionOverview, getRestaurantById } from "@/lib/db";
 import { t } from "@/lib/i18n";
 import OrdersClient from "./OrdersClient";
 
-export const metadata = { title: "Orders & Checkout – MenuQR Admin" };
+export const metadata = { title: "Orders & Checkout – QEVYRA Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function OrdersPage() {

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 
 const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
-const vapidSubject = process.env.VAPID_SUBJECT || "mailto:admin@menuqr.app";
+const vapidSubject = process.env.VAPID_SUBJECT || "mailto:admin@qevyra.app";
 
 const isConfigured = Boolean(vapidPublicKey && vapidPrivateKey);
 

@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { requireRestaurantAdmin } from "@/lib/auth-guard";
-import { getEffectiveAccess, canUse } from "@/lib/plans";
-import { loadOperationalRestaurant } from "@/lib/plans";
+import { loadBusinessContext } from "@/lib/auth-guard";
+import { canUse } from "@/lib/plans";
 import { listWebsiteThemes, validThemeId } from "@/modules/website/services";
 import { prisma } from "@/lib/prisma";
 
@@ -26,25 +25,20 @@ const websiteSchema = z.object({
   addressText: z.string().trim().max(500).optional().nullable(),
   mapUrl: z.string().trim().max(500).optional().nullable(),
   footerText: z.string().trim().max(500).optional().nullable(),
+  googleReviewUrl: z.string().trim().max(500).optional().nullable(),
 });
 
 /**
  * Website editor — GET returns the business's website (auto-creating a draft
  * on first visit) plus the theme catalog. PATCH persists content. Both are
- * tenant-scoped and gated on the business_website feature.
+ * tenant-scoped to the Business row (works for menu- and track-kind tenants)
+ * and gated on the business_website feature.
  */
 async function resolveBusiness() {
-  const user = await requireRestaurantAdmin();
-  const businessId = (user as { businessId?: string | null }).businessId;
-  if (!businessId) return null;
-
-  const restaurant = await loadOperationalRestaurant(user.restaurantId!);
-  if (!restaurant?.business) return null;
-
-  const access = await getEffectiveAccess(restaurant.business);
-  if (!canUse(access, "business_website")) return null;
-
-  return { user, businessId };
+  const ctx = await loadBusinessContext();
+  if (!ctx) return null;
+  if (!canUse(ctx.access, "business_website")) return null;
+  return ctx;
 }
 
 export async function GET() {
@@ -53,14 +47,14 @@ export async function GET() {
 
   const [website, themes] = await Promise.all([
     prisma.website.findUnique({
-      where: { businessId: ctx.businessId },
+      where: { businessId: ctx.business.id },
       include: { business: true, theme: true },
     }),
     listWebsiteThemes(),
   ]);
 
   // First visit: create an empty draft so the editor has a row to edit.
-  const draft = website ?? (await prisma.website.create({ data: { businessId: ctx.businessId } }));
+  const draft = website ?? (await prisma.website.create({ data: { businessId: ctx.business.id } }));
 
   return NextResponse.json({ website: draft, themes });
 }
@@ -82,7 +76,7 @@ export async function PATCH(req: Request) {
   }
 
   const website = await prisma.website.upsert({
-    where: { businessId: ctx.businessId },
+    where: { businessId: ctx.business.id },
     update: {
       ...(data.themeId !== undefined ? { themeId: validThemeId(data.themeId) } : {}),
       ...(data.isPublished !== undefined ? { isPublished: data.isPublished } : {}),
@@ -103,9 +97,10 @@ export async function PATCH(req: Request) {
       addressText: data.addressText,
       mapUrl: data.mapUrl,
       footerText: data.footerText,
+      googleReviewUrl: data.googleReviewUrl,
     },
     create: {
-      businessId: ctx.businessId,
+      businessId: ctx.business.id,
       ...(data.themeId !== undefined ? { themeId: validThemeId(data.themeId) } : {}),
       ...(data.isPublished !== undefined ? { isPublished: data.isPublished } : {}),
       metaTitle: data.metaTitle,
@@ -125,6 +120,7 @@ export async function PATCH(req: Request) {
       addressText: data.addressText,
       mapUrl: data.mapUrl,
       footerText: data.footerText,
+      googleReviewUrl: data.googleReviewUrl,
       isPublished: data.isPublished ?? false,
     },
   });

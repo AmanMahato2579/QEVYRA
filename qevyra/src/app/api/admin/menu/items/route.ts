@@ -2,13 +2,14 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { httpUrlSchema } from "@/lib/utils";
 
 const itemSchema = z.object({
   categoryId: z.string(),
   name: z.string().min(1).max(100),
   description: z.string().optional(),
   price: z.coerce.number().min(0).default(0),
-  imageUrl: z.string().url().optional().nullable().or(z.literal("")),
+  imageUrl: httpUrlSchema.optional().nullable().or(z.literal("")),
   isAvailable: z.boolean().default(true),
   hasSpicyOption: z.boolean().default(false),
   hasNoteOption: z.boolean().default(true),

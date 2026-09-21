@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Wallet, CalendarDays, Armchair, LayoutGrid, Clock, ChefHat } from "lucide-react";
 
-export const metadata = { title: "Dashboard – MenuQR Admin" };
+export const metadata = { title: "Dashboard – QEVYRA Admin" };
 
 export default async function AdminDashboard() {
   const user = await requireRestaurantAdmin();

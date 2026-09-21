@@ -6,7 +6,7 @@ import Link from "next/link";
 import { CalendarCheck } from "lucide-react";
 import BookingsClient from "./BookingsClient";
 
-export const metadata = { title: "Bookings – MenuQR Admin" };
+export const metadata = { title: "Bookings – QEVYRA Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function BookingsPage({

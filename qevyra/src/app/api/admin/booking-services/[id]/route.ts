@@ -2,13 +2,14 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { httpUrlSchema } from "@/lib/utils";
 
 const updateSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   type: z.enum(["ROOM", "POOL", "TABLE_GAME", "ADVENTURE", "OTHER"]).optional(),
   description: z.string().max(1000).nullable().optional(),
   price: z.coerce.number().min(0).optional(),
-  imageUrl: z.string().url().nullable().optional().or(z.literal("")),
+  imageUrl: httpUrlSchema.nullable().optional().or(z.literal("")),
   capacity: z.coerce.number().int().min(1).max(500).optional(),
   venueCount: z.coerce.number().int().min(1).max(100).optional(),
   slotDurationMinutes: z.coerce.number().int().min(30).max(1440).optional(),

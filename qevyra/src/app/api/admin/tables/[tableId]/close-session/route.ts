@@ -12,28 +12,33 @@ export async function POST(
 
   const { tableId } = await params;
 
-  // Find all active session IDs for this table
-  const activeSessions = await prisma.tableSession.findMany({
-    where: { tableId, restaurantId, status: "ACTIVE" },
-    select: { id: true },
-  });
-  const sessionIds = activeSessions.map((s) => s.id);
+  // Close all active sessions for this table in one transaction so orders
+  // cannot slip into a session mid-close.
+  const closed = await prisma.$transaction(async (tx) => {
+    const actives = await tx.tableSession.findMany({
+      where: { tableId, restaurantId, status: "ACTIVE" },
+      select: { id: true },
+    });
+    if (actives.length === 0) return false;
 
-  // Close all active sessions for this table
-  await prisma.tableSession.updateMany({
-    where: { tableId, restaurantId, status: "ACTIVE" },
-    data: { status: "CLOSED", closedAt: new Date() },
-  });
+    await tx.tableSession.updateMany({
+      where: { id: { in: actives.map((s) => s.id) }, status: "ACTIVE" },
+      data: { status: "CLOSED", closedAt: new Date() },
+    });
 
-  // Mark all orders in these sessions as COMPLETED
-  if (sessionIds.length > 0) {
-    await prisma.order.updateMany({
+    // Mark all orders in these sessions as COMPLETED
+    await tx.order.updateMany({
       where: {
-        tableSessionId: { in: sessionIds },
+        tableSessionId: { in: actives.map((s) => s.id) },
         status: { notIn: ["COMPLETED", "REJECTED"] },
       },
       data: { status: "COMPLETED", statusChangedAt: new Date() },
     });
+    return true;
+  });
+
+  if (!closed) {
+    return NextResponse.json({ error: "No active session for this table" }, { status: 404 });
   }
 
   return NextResponse.json({ success: true });

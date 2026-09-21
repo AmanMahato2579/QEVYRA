@@ -44,6 +44,18 @@ export async function DELETE(
   const existing = await prisma.category.findFirst({ where: { id: categoryId, restaurantId } });
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // Deleting a category cascades to its menu items; if any of them were ever
+  // ordered the FK on the order history makes the whole delete error out.
+  const usage = await prisma.orderItem.count({
+    where: { menuItem: { categoryId } },
+  });
+  if (usage > 0) {
+    return NextResponse.json(
+      { error: "Items in this category have been ordered before, so it can't be deleted. Set the category inactive instead." },
+      { status: 409 }
+    );
+  }
+
   await prisma.category.delete({ where: { id: categoryId } });
   return NextResponse.json({ success: true });
 }

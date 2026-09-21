@@ -2,7 +2,7 @@ import { requireRestaurantAdmin } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
 import CategoriesClient from "./CategoriesClient";
 
-export const metadata = { title: "Categories – MenuQR Admin" };
+export const metadata = { title: "Categories – QEVYRA Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function CategoriesPage() {

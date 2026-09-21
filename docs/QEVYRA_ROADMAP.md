@@ -2,6 +2,13 @@
 
 > Stage-by-stage delivery plan. Priority is **stability of the live product first**, then tenancy generalization, then new products. Every stage has scope AND a no-go rule.
 
+> **2026 update (unified `qevyra` app):** the parallel plan in `qevyra/docs/QEVYRA_PLAN.md` governs the
+> unified app. Under it, **Website v1 and Track v1 (ticket/job tracking — workflows, tickets, public
+> `/track` page and `/admin/track`)** shipped together in `qevyra`, ahead of these repo-global stages.
+> That modern, shipped Track semantics ("jobs tracked through a workflow") supersedes the timer-based
+> TrackUnit/TrackSession model described in older docs below (see `qevyra/docs/QEVYRA_TRACK.md`).
+> Stages below still apply to the standalone `modules/order/menu-saas` product.
+
 ---
 
 ## Stage 0 — Foundation (current)

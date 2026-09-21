@@ -31,6 +31,11 @@ const STATUS_LABELS: Record<string, { en: string; nep: string }> = {
   NEW: { en: "New", nep: "नयाँ" },
   SERVED: { en: "Served", nep: "सेवा भएको" },
   CANCELLED: { en: "Cancelled", nep: "रद्द" },
+  PLACED: { en: "Placed", nep: "अर्डर भयो" },
+  IN_PROGRESS: { en: "In progress", nep: "प्रगतिमा" },
+  OUT_FOR_DELIVERY: { en: "Out for delivery", nep: "डेलिभरीमा गएको" },
+  DELIVERED: { en: "Delivered", nep: "डेलिभरी भयो" },
+  PICKED_UP: { en: "Picked up", nep: "बुझाइयो" },
 };
 
 export function orderStatusLabel(status: string, lang?: string | null): string {
