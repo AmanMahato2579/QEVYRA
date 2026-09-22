@@ -46,6 +46,21 @@ Migrations `20260921123000_audit_atomicity_2026` and `20260921124500_order_servi
   codePrefix)`; `TicketStatusHistory` immutable (append-only transitions).
 - `Plan.featureKeys` JSON or `ALL_CURRENT_FEATURES`; `limitKeys` JSON (only `qrTables` defined today).
 
+## Applied 2026-09-22 — product-activation model (`20260922164629_business_product_model`)
+
+Introduces the functional subscription model decoupled from the legacy billing tiers:
+
+- `enum ProductType` — `WEBSITE`, `MENU`, `ORDER`, `TRACK`, `TRACK_PRO`.
+- `Product` — platform product catalog (id = ProductType), seeded from `plan-catalog.ts`. Each row
+  carries the FULL flattened `featureKeys` set it unlocks and `limitKeys` defaults.
+- `BusinessProduct` — tenant entitlement (`businessId`, `productId`, `isActive`,
+  `@@unique([businessId, productId])`). Access in `plans.ts::getEffectiveAccess` is now derived
+  from the union of a Business's ACTIVE products; legacy `Plan` rows (BRONZE/SILVER/STAR) remain
+  only as a fallback for businesses without product rows.
+- Migration backfills every existing Business with the product set matching its prior plan/type
+  (STAR → all five; SILVER → Website+Menu+Order; track kinds → Website+Track; default →
+  Website+Menu) and seeds the five catalog rows.
+
 ## Planned schema changes (each needs a migration; decision with user at phase start)
 
 Nothing is applied yet — listed for the upcoming phases.

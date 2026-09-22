@@ -7,9 +7,10 @@ import type { Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useToast } from "@/components/ui/toast";
-import { Plus, Building2, Users, QrCode, CheckCircle, XCircle, Loader2, Trash2, Pencil, CalendarCheck, Star, Clock3 } from "lucide-react";
+import { Plus, Building2, Users, QrCode, CheckCircle, XCircle, Loader2, Trash2, Pencil, CalendarCheck, Star, Clock3, ExternalLink } from "lucide-react";
+import Link from "next/link";
 import { slugify } from "@/lib/utils";
-import { planStyleVariant } from "@/lib/plan-catalog";
+import { planStyleVariant, PRODUCT_CATALOG_BY_ID, PRODUCT_IDS, type ProductTypeId } from "@/lib/plan-catalog";
 import { BRAND_PALETTES } from "@/lib/brand";
 import { PACKAGES, type PackageId } from "@/lib/packages";
 
@@ -28,11 +29,13 @@ const restaurantSchema = z.object({
   durationDays: z.preprocess((v) => (v === "" || v == null ? undefined : v), z.coerce.number().int().min(1).max(3650).optional()),
   publishWebsite: z.boolean().optional(),
   starNumber: z.coerce.number().int().min(1).max(10).optional().nullable(),
+  products: z.array(z.enum(PRODUCT_IDS)).optional(),
 });
 
 type RestaurantForm = z.infer<typeof restaurantSchema>;
 
 interface Restaurant {
+  businessId: string;
   id: string;
   name: string;
   slug: string;
@@ -53,6 +56,7 @@ interface Restaurant {
   createdAt: string;
   ownerName: string | null;
   ownerEmail: string | null;
+  products: ProductTypeId[];
   _count: { tables: number; users: number };
 }
 
@@ -73,6 +77,10 @@ const BUSINESS_TYPES: Record<string, { label: string; className: string }> = {
   REPAIR: { label: "Repair service", className: "bg-rose-500/20 text-rose-300" },
   OTHER: { label: "Other", className: "bg-gray-500/20 text-gray-300" },
 };
+
+const TRACK_TYPES = new Set(["TAILOR", "DRY_CLEANING", "GARAGE", "CLEANING", "REPAIR", "SERVICE", "RETAIL"]);
+/** Visible selectable products in the create flow. */
+const CREATE_PRODUCTS: ProductTypeId[] = PRODUCT_IDS.filter((id) => PRODUCT_CATALOG_BY_ID[id]?.isVisible);
 
 const inputCls = "w-full bg-white/10 border border-white/20 text-white rounded-lg px-3 py-2 text-sm placeholder:text-gray-500 focus:outline-none focus:ring-1 focus:ring-purple-500";
 
@@ -98,11 +106,12 @@ export default function SuperAdminClient({ restaurants }: Props) {
   const [editing, setEditing] = useState<Restaurant | null>(null);
   const [editSaving, setEditSaving] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [selectedProducts, setSelectedProducts] = useState<ProductTypeId[]>(["WEBSITE", "MENU", "ORDER"]);
 
   const { register, handleSubmit, reset, watch, setValue, formState: { errors, isSubmitting } } =
     useForm<RestaurantForm>({
       resolver: zodResolver(restaurantSchema) as unknown as Resolver<RestaurantForm>,
-      defaultValues: { tableCount: 0, plan: "STAR", packageId: "website", publishWebsite: false, starNumber: null, businessType: "RESTAURANT" },
+      defaultValues: { tableCount: 0, plan: "STAR", packageId: "website", publishWebsite: false, starNumber: null, businessType: "RESTAURANT", products: ["WEBSITE", "MENU", "ORDER"] },
     });
 
   const name = watch("name");
@@ -118,10 +127,22 @@ export default function SuperAdminClient({ restaurants }: Props) {
     if (pkg) setValue("plan", pkg.plan);
   };
 
+  const toggleProduct = (productId: ProductTypeId) => {
+    setSelectedProducts((prev) =>
+      prev.includes(productId) ? prev.filter((p) => p !== productId) : [...prev, productId]
+    );
+  };
+
+  const onTypeChange = (type: string) => {
+    const base: ProductTypeId[] = TRACK_TYPES.has(type) ? ["WEBSITE", "TRACK"] : ["WEBSITE", "MENU", "ORDER"];
+    setSelectedProducts(base);
+    setValue("products", base);
+  };
+
   const patch = async (id: string, body: Record<string, unknown>) => {
     setBusyId(id);
     try {
-      const res = await fetch(`/api/super-admin/restaurants/${id}`, {
+      const res = await fetch(`/api/super-admin/businesses/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -132,10 +153,10 @@ export default function SuperAdminClient({ restaurants }: Props) {
     }
   };
 
-  const toggleActive = async (id: string, current: boolean) => {
-    const res = await patch(id, { isActive: !current });
+  const toggleActive = async (r: Restaurant) => {
+    const res = await patch(r.businessId, { isActive: !r.isActive });
     if (res.ok) {
-      toast({ title: current ? "Restaurant deactivated" : "Restaurant activated", variant: "success" });
+      toast({ title: r.isActive ? "Business deactivated" : "Business activated", variant: "success" });
       startTransition(() => router.refresh());
     } else {
       const err = await res.json();
@@ -143,10 +164,10 @@ export default function SuperAdminClient({ restaurants }: Props) {
     }
   };
 
-  const toggleBookings = async (id: string, current: boolean) => {
-    const res = await patch(id, { bookingsEnabled: !current });
+  const toggleBookings = async (r: Restaurant) => {
+    const res = await patch(r.businessId, { bookingsEnabled: !r.bookingsEnabled });
     if (res.ok) {
-      toast({ title: `Bookings ${!current ? "enabled" : "disabled"}`, variant: "success" });
+      toast({ title: `Bookings ${!r.bookingsEnabled ? "enabled" : "disabled"}`, variant: "success" });
       startTransition(() => router.refresh());
     } else {
       const err = await res.json();
@@ -154,8 +175,8 @@ export default function SuperAdminClient({ restaurants }: Props) {
     }
   };
 
-  const extendDays = async (id: string, days: number) => {
-    const res = await patch(id, { extendDays: days });
+  const extendDays = async (r: Restaurant, days: number) => {
+    const res = await patch(r.businessId, { extendDays: days });
     toast(
       res.ok
         ? { title: `Subscription extended by ${days} days`, variant: "success" }
@@ -168,7 +189,7 @@ export default function SuperAdminClient({ restaurants }: Props) {
     const used = usedStarNumbers;
     for (let n = 1; n <= 10; n++) {
       if (!used.has(n)) {
-        const res = await patch(r.id, { starNumber: n });
+        const res = await patch(r.businessId, { starNumber: n });
         if (res.ok) {
           toast({ title: `${r.name} is now Star #${n}`, variant: "success" });
           startTransition(() => router.refresh());
@@ -183,18 +204,18 @@ export default function SuperAdminClient({ restaurants }: Props) {
   };
 
   const removeStar = async (r: Restaurant) => {
-    const res = await patch(r.id, { starNumber: null });
+    const res = await patch(r.businessId, { starNumber: null });
     toast(res.ok ? { title: `Star #${r.starNumber} removed`, variant: "success" } : { title: "Could not remove star", variant: "destructive" });
     if (res.ok) startTransition(() => router.refresh());
   };
 
-  const deleteRestaurant = async (id: string) => {
-    setDeletingId(id);
-    const res = await fetch(`/api/super-admin/restaurants/${id}`, { method: "DELETE" });
+  const deleteBusiness = async (businessId: string) => {
+    setDeletingId(businessId);
+    const res = await fetch(`/api/super-admin/businesses/${businessId}`, { method: "DELETE" });
     setDeletingId(null);
     setConfirmDelete(null);
     if (res.ok) {
-      toast({ title: "Restaurant deleted", variant: "success" });
+      toast({ title: "Business deleted", variant: "success" });
       startTransition(() => router.refresh());
     } else {
       const err = await res.json();
@@ -202,14 +223,14 @@ export default function SuperAdminClient({ restaurants }: Props) {
     }
   };
 
-  const resetPassword = async (id: string) => {
-    const password = window.prompt("Set a new temporary password for this restaurant owner (minimum 8 characters):");
+  const resetPassword = async (r: Restaurant) => {
+    const password = window.prompt("Set a new temporary password for this business owner (minimum 8 characters):");
     if (!password) return;
     if (password.length < 8) {
       toast({ title: "Password must be at least 8 characters", variant: "destructive" });
       return;
     }
-    const res = await fetch(`/api/super-admin/restaurants/${id}/reset-password`, {
+    const res = await fetch(`/api/super-admin/businesses/${r.businessId}/reset-password`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ password }),
@@ -239,27 +260,28 @@ export default function SuperAdminClient({ restaurants }: Props) {
     body.starNumber = starRaw === "" ? null : Number(starRaw);
     body.subscriptionExpiresAt = expiresRaw === "" ? null : new Date(expiresRaw).toISOString();
 
-    const res = await fetch(`/api/super-admin/restaurants/${editing.id}`, {
+    const res = await fetch(`/api/super-admin/businesses/${editing.businessId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
     setEditSaving(false);
     if (res.ok) {
-      toast({ title: "Restaurant updated", variant: "success" });
+      toast({ title: "Business updated", variant: "success" });
       startTransition(() => router.refresh());
       setEditing(null);
     } else {
       const err = await res.json();
-      toast({ title: "Could not update restaurant", variant: "destructive", description: JSON.stringify(err.error) });
+      toast({ title: "Could not update business", variant: "destructive", description: JSON.stringify(err.error) });
     }
   };
 
   const onSubmit = async (data: RestaurantForm) => {
+    const products = selectedProducts.length > 0 ? selectedProducts : undefined;
     const res = await fetch("/api/super-admin/restaurants", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
+      body: JSON.stringify({ ...data, products }),
     });
     if (res.ok) {
       const pkg = PACKAGES.find((p) => p.id === data.packageId);
@@ -268,9 +290,10 @@ export default function SuperAdminClient({ restaurants }: Props) {
         variant: "success",
         description: data.starNumber
           ? `Owner: ${data.ownerEmail} · Star #${data.starNumber}`
-          : `Owner: ${data.ownerEmail} · ${pkg ? pkg.name : data.plan ?? "STAR"}${data.publishWebsite ? " · website live" : ""}`,
+          : `Owner: ${data.ownerEmail} · ${products?.join(" + ") ?? pkg?.name ?? data.plan ?? "STAR"}${data.publishWebsite ? " · website live" : ""}`,
       });
-      reset({ tableCount: 0, plan: "STAR", packageId: "website", publishWebsite: false, starNumber: null, businessType: "RESTAURANT" });
+      reset({ tableCount: 0, plan: "STAR", packageId: "website", publishWebsite: false, starNumber: null, businessType: "RESTAURANT", products: ["WEBSITE", "MENU", "ORDER"] });
+      setSelectedProducts(["WEBSITE", "MENU", "ORDER"]);
       setShowForm(false);
       startTransition(() => router.refresh());
     } else {
@@ -303,7 +326,7 @@ export default function SuperAdminClient({ restaurants }: Props) {
             </div>
             <div className="space-y-1">
               <label className="text-sm text-gray-300">Owner Email *</label>
-              <input type="email" {...register("ownerEmail")} placeholder="owner@restaurant.com" className={inputCls} />
+              <input type="email" {...register("ownerEmail")} placeholder="owner@business.com" className={inputCls} />
               {errors.ownerEmail && <p className="text-red-400 text-xs">{errors.ownerEmail.message}</p>}
             </div>
             <div className="space-y-1">
@@ -312,13 +335,13 @@ export default function SuperAdminClient({ restaurants }: Props) {
               {errors.tempPassword && <p className="text-red-400 text-xs">{errors.tempPassword.message}</p>}
             </div>
             <div className="space-y-1">
-              <label className="text-sm text-gray-300">Number of Tables</label>
+              <label className="text-sm text-gray-300">Number of Tables (order product)</label>
               <input type="number" {...register("tableCount")} min={0} className={inputCls} />
               {errors.tableCount && <p className="text-red-400 text-xs">{errors.tableCount.message}</p>}
             </div>
             <div className="space-y-1">
               <label className="text-sm text-gray-300">Business type</label>
-              <select {...register("businessType")} className={inputCls}>
+              <select {...register("businessType")} onChange={(e) => { register("businessType").onChange(e); onTypeChange(e.target.value); }} className={inputCls}>
                 <option value="RESTAURANT">Restaurant / cafe</option>
                 <option value="HOTEL">Hotel</option>
                 <option value="HOMESTAY">Homestay</option>
@@ -331,6 +354,25 @@ export default function SuperAdminClient({ restaurants }: Props) {
                 <option value="REPAIR">Repair service</option>
                 <option value="OTHER">Other</option>
               </select>
+            </div>
+            <div className="col-span-2 space-y-1.5">
+              <label className="text-sm text-gray-300">Products to grant (what the business can use)</label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {CREATE_PRODUCTS.map((id) => {
+                  const def = PRODUCT_CATALOG_BY_ID[id];
+                  const on = selectedProducts.includes(id);
+                  return (
+                    <button type="button" key={id} onClick={() => toggleProduct(id)}
+                      className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors ${
+                        on ? "bg-purple-500/20 border-purple-500/50 text-purple-200" : "bg-white/5 border-white/10 text-gray-300 hover:bg-white/10"
+                      }`}>
+                      <span>{def.label}</span>
+                      {on ? <CheckCircle className="w-4 h-4 text-purple-300" /> : <Plus className="w-4 h-4 text-gray-500" />}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-gray-500">Product grants decide which product screens the owner sees. Set automatically per business type — override freely.</p>
             </div>
             <div className="space-y-1">
               <label className="text-sm text-gray-300">Product package (sets plan &amp; auto expiry)</label>
@@ -349,7 +391,7 @@ export default function SuperAdminClient({ restaurants }: Props) {
               })()}
             </div>
             <div className="space-y-1">
-              <label className="text-sm text-gray-300">Starting plan (overrides package)</label>
+              <label className="text-sm text-gray-300">Billing plan (overrides package)</label>
               <select {...register("plan")} className={inputCls}>
                 <option value="STAR">STAR (founding → assign star #)</option>
                 <option value="SILVER">SILVER</option>
@@ -399,7 +441,7 @@ export default function SuperAdminClient({ restaurants }: Props) {
                 {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
                 Create Business
               </button>
-              <button type="button" onClick={() => { setShowForm(false); reset({ tableCount: 0, plan: "STAR", packageId: "website", publishWebsite: false, starNumber: null, businessType: "RESTAURANT" }); }}
+              <button type="button" onClick={() => { setShowForm(false); reset({ tableCount: 0, plan: "STAR", packageId: "website", publishWebsite: false, starNumber: null, businessType: "RESTAURANT", products: ["WEBSITE", "MENU", "ORDER"] }); setSelectedProducts(["WEBSITE", "MENU", "ORDER"]); }}
                 className="px-6 py-2.5 border border-white/20 text-gray-300 rounded-lg text-sm hover:border-white/40 transition-colors">
                 Cancel
               </button>
@@ -417,20 +459,20 @@ export default function SuperAdminClient({ restaurants }: Props) {
         </div>
       )}
 
-      {/* Restaurants List */}
+      {/* Businesses List */}
       <div className="space-y-3">
         {restaurants.map((r) => {
           const planStyle = planStyleVariant(r.plan);
           const sub = subscriptionInfo(r);
           return (
-            <div key={r.id} className="bg-white/5 border border-white/10 rounded-xl p-5">
-              {editing?.id === r.id && (
+            <div key={r.businessId} className="bg-white/5 border border-white/10 rounded-xl p-5">
+              {editing?.businessId === r.businessId && (
                 <form onSubmit={editRestaurant} className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-3 rounded-xl border border-purple-500/30 bg-purple-500/10 p-4">
-                  <p className="md:col-span-2 text-sm font-semibold text-purple-200">Edit restaurant details &amp; subscription</p>
-                  <input name="name" defaultValue={r.name} required className={inputCls} placeholder="Restaurant name" />
+                  <p className="md:col-span-2 text-sm font-semibold text-purple-200">Edit business details &amp; subscription</p>
+                  <input name="name" defaultValue={r.name} required className={inputCls} placeholder="Business name" />
                   <input name="phone" defaultValue={r.phone ?? ""} className={inputCls} placeholder="Phone" />
                   <input name="address" defaultValue={r.address ?? ""} className={inputCls} placeholder="Address" />
-                  <input name="tableLimit" type="number" min="1" max="200" defaultValue={r.tableLimit} required className={inputCls} placeholder="QR table limit" />
+                  <input name="tableLimit" type="number" min="0" max="200" defaultValue={r.tableLimit} className={inputCls} placeholder="QR table limit" />
                   <select name="plan" defaultValue={r.plan || "STAR"} className={inputCls}>
                     <option value="STAR">STAR (founding)</option>
                     <option value="SILVER">SILVER</option>
@@ -471,8 +513,8 @@ export default function SuperAdminClient({ restaurants }: Props) {
                     </label>
                   </div>
                   <p className="md:col-span-2 text-xs text-purple-200/80">
-                    The limit controls the maximum number of QR tables the restaurant can create. Assigning a star number puts the
-                    restaurant on the STAR plan with an active, never-expiring subscription.
+                    The limit controls the maximum number of QR tables the owner can create. Assigning a star number puts the
+                    business on the STAR plan with an active, never-expiring subscription.
                   </p>
                   <div className="md:col-span-2 flex gap-2">
                     <button disabled={editSaving} className="px-4 py-2 rounded-lg bg-purple-500 text-sm font-medium text-white disabled:opacity-50">
@@ -483,16 +525,16 @@ export default function SuperAdminClient({ restaurants }: Props) {
                 </form>
               )}
               {/* Confirm delete overlay */}
-              {confirmDelete === r.id && (
+              {confirmDelete === r.businessId && (
                 <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center justify-between gap-3">
                   <p className="text-red-300 text-sm font-medium">⚠️ Permanently delete <strong>{r.name}</strong> and all its data?</p>
                   <div className="flex gap-2 shrink-0">
                     <button
-                      onClick={() => deleteRestaurant(r.id)}
-                      disabled={deletingId === r.id}
+                      onClick={() => deleteBusiness(r.businessId)}
+                      disabled={deletingId === r.businessId}
                       className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-medium flex items-center gap-1"
                     >
-                      {deletingId === r.id ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                      {deletingId === r.businessId ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
                       Yes, Delete
                     </button>
                     <button onClick={() => setConfirmDelete(null)} className="px-3 py-1.5 border border-white/20 text-gray-300 rounded-lg text-xs">Cancel</button>
@@ -505,7 +547,9 @@ export default function SuperAdminClient({ restaurants }: Props) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-white">{r.name}</p>
+                    <Link href={`/super-admin/businesses/${r.businessId}`} className="font-semibold text-white hover:text-purple-300 transition-colors">
+                      {r.name}
+                    </Link>
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${BUSINESS_TYPES[r.type]?.className ?? "bg-gray-500/20 text-gray-300"}`}>
                       {BUSINESS_TYPES[r.type]?.label ?? r.type}
                     </span>
@@ -520,6 +564,18 @@ export default function SuperAdminClient({ restaurants }: Props) {
                     )}
                     <span className={`text-xs px-2 py-0.5 rounded-full ${sub.className}`}>{sub.label}</span>
                   </div>
+                  <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                    {r.products.map((pid) => {
+                      const def = PRODUCT_CATALOG_BY_ID[pid];
+                      if (!def) return null;
+                      return (
+                        <span key={pid} className={`text-[11px] px-2 py-0.5 rounded-full font-medium border ${def.badge}`}>
+                          {def.label}
+                        </span>
+                      );
+                    })}
+                    {r.products.length === 0 && <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-500/20 text-gray-400">No products</span>}
+                  </div>
                   <p className="text-xs text-gray-400">/{r.slug} · joined {new Date(r.createdAt).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })}</p>
                   {(r.ownerName || r.ownerEmail) && (
                     <p className="text-xs text-gray-300 truncate">
@@ -529,7 +585,9 @@ export default function SuperAdminClient({ restaurants }: Props) {
                   )}
                   {r.starNote && <p className="text-xs text-gray-500 italic mt-0.5">Star note: {r.starNote}</p>}
                   <div className="flex items-center gap-3 mt-1 text-xs text-gray-400 flex-wrap">
-                    <span className="flex items-center gap-1"><QrCode className="w-3 h-3" /> {r._count.tables} / {r.tableLimit} QR tables</span>
+                    {r.products.includes("MENU") || r.products.includes("ORDER") ? (
+                      <span className="flex items-center gap-1"><QrCode className="w-3 h-3" /> {r._count.tables} / {r.tableLimit} QR tables</span>
+                    ) : null}
                     <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {r._count.users} users</span>
                     {r.bookingsEnabled && <span className="flex items-center gap-1"><CalendarCheck className="w-3 h-3" /> Bookings on</span>}
                     {r.plan === "SILVER" || r.plan === "BRONZE" ? (
@@ -541,35 +599,36 @@ export default function SuperAdminClient({ restaurants }: Props) {
                   </div>
                 </div>
                 <div className="flex flex-col gap-2 shrink-0">
+                  <Link href={`/super-admin/businesses/${r.businessId}`} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-purple-500/40 text-purple-300 hover:bg-purple-500/10"><ExternalLink className="w-3.5 h-3.5" /> Manage</Link>
                   <button onClick={() => setEditing(r)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-white/20 text-gray-200 hover:bg-white/10"><Pencil className="w-3.5 h-3.5" /> Edit details</button>
                   <button
                     onClick={() => (r.starNumber != null ? removeStar(r) : assignNextStar(r))}
-                    disabled={busyId === r.id}
+                    disabled={busyId === r.businessId}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-purple-500/30 text-purple-300 hover:bg-purple-500/10 disabled:opacity-50"
                   >
                     <Star className="w-3.5 h-3.5" /> {r.starNumber != null ? `Remove Star #${r.starNumber}` : "Give Star"}
                   </button>
                   <button
-                    onClick={() => extendDays(r.id, 30)}
-                    disabled={busyId === r.id}
+                    onClick={() => extendDays(r, 30)}
+                    disabled={busyId === r.businessId}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-white/20 text-gray-200 hover:bg-white/10 disabled:opacity-50"
                   >
                     <Clock3 className="w-3.5 h-3.5" /> Extend 30 days
                   </button>
-                  <button onClick={() => toggleBookings(r.id, r.bookingsEnabled)}
+                  <button onClick={() => toggleBookings(r)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                       r.bookingsEnabled ? "border border-purple-500/30 text-purple-300 hover:bg-purple-500/10" : "border border-white/20 text-gray-200 hover:bg-white/10"
                     }`}>
                     <CalendarCheck className="w-3.5 h-3.5" /> {r.bookingsEnabled ? "Disable bookings" : "Enable bookings"}
                   </button>
-                  <button onClick={() => toggleActive(r.id, r.isActive)}
+                  <button onClick={() => toggleActive(r)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                       r.isActive ? "border border-red-500/30 text-red-400 hover:bg-red-500/10" : "border border-green-500/30 text-green-400 hover:bg-green-500/10"
                     }`}>
                     {r.isActive ? <><XCircle className="w-3.5 h-3.5" />Deactivate</> : <><CheckCircle className="w-3.5 h-3.5" />Activate</>}
                   </button>
-                  <button onClick={() => resetPassword(r.id)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-orange-500/30 text-orange-300 hover:bg-orange-500/10"><Users className="w-3.5 h-3.5" /> Reset password</button>
-                  <button onClick={() => setConfirmDelete(confirmDelete === r.id ? null : r.id)}
+                  <button onClick={() => resetPassword(r)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-orange-500/30 text-orange-300 hover:bg-orange-500/10"><Users className="w-3.5 h-3.5" /> Reset password</button>
+                  <button onClick={() => setConfirmDelete(confirmDelete === r.businessId ? null : r.businessId)}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-red-500/20 text-red-400 hover:bg-red-500/10 transition-colors">
                     <Trash2 className="w-3.5 h-3.5" /> Delete
                   </button>

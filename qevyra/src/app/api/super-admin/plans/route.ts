@@ -17,9 +17,7 @@ const featureKeysSchema = z.union([
   z.literal(ALL_FEATURES_MARKER),
 ]);
 
-const limitKeysSchema = z.record(z.string(), z.number().int().min(0)).refine((v) => "qrTables" in v, {
-  message: "limitKeys must include qrTables",
-});
+const limitKeysSchema = z.record(z.string(), z.number().int().min(0));
 
 const patchSchema = z.object({
   id: z.string(),

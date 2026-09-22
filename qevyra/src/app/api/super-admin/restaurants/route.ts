@@ -2,13 +2,14 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { BusinessType } from "@prisma/client";
+import { BusinessType, ProductType } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { slugify } from "@/lib/utils";
 import { getPlatformSettings } from "@/lib/settings";
 import { logActivity } from "@/lib/activity";
 import { findPackage } from "@/lib/packages";
 import { isTrackBusinessType } from "@/lib/business-kind";
+import { PRODUCT_IDS, planProductsFor } from "@/lib/plan-catalog";
 
 const schema = z.object({
   name: z.string().min(2),
@@ -25,6 +26,7 @@ const schema = z.object({
   durationDays: z.number().int().min(1).max(3650).optional(),
   publishWebsite: z.boolean().optional(),
   starNumber: z.number().int().min(1).max(10).nullable().optional(),
+  products: z.array(z.nativeEnum(ProductType)).optional(),
 });
 
 async function isSuperAdmin() {
@@ -55,6 +57,7 @@ export async function POST(req: Request) {
     durationDays,
     publishWebsite,
     starNumber,
+    products,
   } = parsed.data;
   const settings = await getPlatformSettings();
   const tableCount = parsed.data.tableCount ?? settings.defaultTableLimit;
@@ -95,6 +98,12 @@ export async function POST(req: Request) {
   // per-product profile. Track-kind businesses get no Restaurant/menu profile —
   // their product is website + live ticket tracking, kept fully separate.
   const isTrack = businessType ? isTrackBusinessType(businessType) : false;
+  // Product grants: explicit selection wins; otherwise fall back to the
+  // plan + kind mapping so legacy flows keep working.
+  const effectiveProducts =
+    products && products.length > 0
+      ? [...new Set(products.filter((p) => (PRODUCT_IDS as readonly string[]).includes(p)))]
+      : planProductsFor(isTrack ? "track" : "menu", effectivePlan);
   const result = await prisma.$transaction(async (tx) => {
     const business = await tx.business.create({
       data: {
@@ -186,20 +195,28 @@ export async function POST(req: Request) {
       }
     }
 
-    return { restaurant, user };
+    // Grant the business its products — the functional subscription model.
+    if (effectiveProducts.length > 0) {
+      await tx.businessProduct.createMany({
+        data: effectiveProducts.map((productId) => ({ businessId: business.id, productId, isActive: true })),
+        skipDuplicates: true,
+      });
+    }
+
+    return { restaurant, user, businessId: business.id };
   });
 
-  await logActivity("restaurant_created", {
-    restaurantId: result.restaurant?.id ?? null,
-    restaurantName: result.restaurant?.name ?? name,
+  await logActivity("business_created", {
+    businessId: result.businessId,
+    businessName: name,
     detail: isStar
       ? `Star founding assignment #${starNumber}`
-      : `Plan: ${effectivePlan}${pkg ? ` · ${pkg.name}` : ""}${publishWebsite ? " · website live" : ""}`,
+      : `Plan: ${effectivePlan} · Products: ${effectiveProducts.join(", ")}${publishWebsite ? " · website live" : ""}`,
   });
   if (isStar) {
     await logActivity("star_assigned", {
-      restaurantId: result.restaurant?.id ?? null,
-      restaurantName: result.restaurant?.name ?? name,
+      businessId: result.businessId,
+      businessName: name,
       detail: `Star #${starNumber}`,
     });
   }
@@ -214,7 +231,7 @@ export async function POST(req: Request) {
     restaurantId: result.user.restaurantId,
   };
   return NextResponse.json(
-    { restaurant: result.restaurant, user: owner, websitePublished: publishWebsite ?? false },
+    { businessId: result.businessId, restaurant: result.restaurant, user: owner, websitePublished: publishWebsite ?? false },
     { status: 201 },
   );
 }

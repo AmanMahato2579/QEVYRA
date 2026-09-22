@@ -14,10 +14,13 @@ interface AdminShellProps {
   language?: string;
   bookingsEnabled?: boolean;
   brandColor?: string;
+  hasMenu?: boolean;
+  hasOrder?: boolean;
+  hasWebsite?: boolean;
   children: React.ReactNode;
 }
 
-export default function AdminShell({ user, initialUnreadCount, language = "EN", bookingsEnabled = false, brandColor = "orange", children }: AdminShellProps) {
+export default function AdminShell({ user, initialUnreadCount, language = "EN", bookingsEnabled = false, brandColor = "orange", hasMenu = true, hasOrder = true, hasWebsite = true, children }: AdminShellProps) {
   const pathname = usePathname();
   const [openedForPath, setOpenedForPath] = useState<string | null>(null);
   const sidebarOpen = openedForPath === pathname;
@@ -47,7 +50,7 @@ export default function AdminShell({ user, initialUnreadCount, language = "EN", 
         />
       )}
 
-      <AdminSidebar user={user} open={sidebarOpen} onNavigate={closeSidebar} language={language} bookingsEnabled={bookingsEnabled} />
+      <AdminSidebar user={user} open={sidebarOpen} onNavigate={closeSidebar} language={language} bookingsEnabled={bookingsEnabled} hasMenu={hasMenu} hasOrder={hasOrder} hasWebsite={hasWebsite} />
 
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         <AdminHeader

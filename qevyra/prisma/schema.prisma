@@ -84,10 +84,54 @@ model Business {
   website    Website?
   workflows  Workflow[]
   tickets    Ticket[]
+  // Product activation: which QEVYRA products the business is entitled to use.
+  // This is the source of truth for feature/limit access (see plans.ts).
+  products   BusinessProduct[]
 
   @@index([slug])
   @@index([type])
   @@index([plan])
+}
+
+// Platform product catalog (seeded by super admin, mirror of plan-catalog.ts).
+// A Product is a FUNCTIONAL module a business can be granted (Website, Menu,
+// Order, Track, …) — deliberately decoupled from the legacy billing tiers
+// (BRONZE/SILVER/STAR) which remain on Business.plan for pricing/history only.
+// featureKeys is a JSON array of feature keys the product unlocks; limitKeys a
+// JSON object such as { "qrTables": 20, "workflows": 5 }.
+model Product {
+  id          ProductType @id
+  name        String
+  description String?
+  featureKeys String      @default("[]")
+  limitKeys   String      @default("{}")
+  sortOrder   Int         @default(0)
+  isVisible   Boolean     @default(true)
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  businesses BusinessProduct[]
+
+  @@index([isVisible])
+}
+
+// Tenant-scoped product entitlement. isActive = the business currently has the
+// product switched on (admins can toggle from the Super Admin business detail).
+model BusinessProduct {
+  id         String      @id @default(cuid())
+  businessId String
+  productId  ProductType
+  isActive   Boolean     @default(true)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id])
+
+  @@unique([businessId, productId])
+  @@index([businessId])
+  @@index([productId])
 }
 
 model User {
@@ -152,6 +196,16 @@ enum UserRole {
   SUPER_ADMIN
   RESTAURANT_ADMIN
   TRACKING_ADMIN
+}
+
+// QEVYRA functional products (what a business is entitled to USE), distinct
+// from the legacy billing tiers (BRONZE/SILVER/STAR) stored on Business.plan.
+enum ProductType {
+  WEBSITE
+  MENU
+  ORDER
+  TRACK
+  TRACK_PRO
 }
 
 // Editable plan catalog. featureKeys is a JSON array (or ["ALL_CURRENT_FEATURES"]

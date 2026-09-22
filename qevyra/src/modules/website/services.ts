@@ -4,8 +4,7 @@
 // the Business row provides the address book (phone, WhatsApp, map, hours).
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
-import { getEffectiveAccess, canUse, canBook } from "@/lib/plans";
-import { businessKindForType } from "@/lib/business-kind";
+import { getEffectiveAccess, canUse, canBook, canUseProductFamily } from "@/lib/plans";
 
 export type WebsiteWithBusiness = Prisma.WebsiteGetPayload<{
   include: { business: true; theme: true };
@@ -186,6 +185,7 @@ async function deriveServiceButtons(businessId: string): Promise<PublicWebsiteSe
   const business = await prisma.business.findUnique({
     where: { id: businessId },
     select: {
+      id: true,
       type: true,
       plan: true,
       featureOverrides: true,
@@ -197,17 +197,18 @@ async function deriveServiceButtons(businessId: string): Promise<PublicWebsiteSe
   });
   if (!business) return { bookings: false, menu: false, track: false };
 
-  // Data isolation: a tenant's product decides its website actions. Menu-kind
-  // businesses (restaurants, homestays, hotels) get menu + table bookings;
-  // track-kind businesses (services) get only the ticket-lookup box.
-  const kind = businessKindForType(business.type);
+  // Data isolation: the tenant's granted products decide its website actions.
+  // Menu-family businesses (restaurants, homestays, hotels) get menu + table
+  // bookings; track-family businesses (services) get only the ticket-lookup box.
   const access = await getEffectiveAccess(business);
-  const menu = kind === "menu" && Boolean(business.restaurant) && canUse(access, "digital_menu");
-  const bookings = kind === "menu" && Boolean(business.restaurant?.bookingsEnabled) && canBook(access, Boolean(business.restaurant?.bookingsEnabled));
+  const menuProduct = canUseProductFamily(access, "menu");
+  const trackProduct = canUseProductFamily(access, "track");
+  const menu = menuProduct && Boolean(business.restaurant) && canUse(access, "digital_menu");
+  const bookings = menuProduct && Boolean(business.restaurant?.bookingsEnabled) && canBook(access, Boolean(business.restaurant?.bookingsEnabled));
   return {
     bookings,
     menu,
-    track: kind === "track" && business.workflows.length > 0 && canUse(access, "business_track"),
+    track: trackProduct && business.workflows.length > 0 && canUse(access, "business_track"),
   };
 }
 

@@ -9,8 +9,8 @@ export default async function SuperAdminLayout({ children }: { children: React.R
 
   const links = [
     { href: "/super-admin", label: "Overview", icon: LayoutDashboard, match: (p: string) => p === "/super-admin" },
-    { href: "/super-admin/restaurants", label: "Restaurants", icon: Building2, match: (p: string) => p.startsWith("/super-admin/restaurants") },
-    { href: "/super-admin/tracking", label: "Tracking", icon: Truck, match: (p: string) => p.startsWith("/super-admin/tracking") },
+    { href: "/super-admin/businesses", label: "Businesses", icon: Building2, match: (p: string) => p.startsWith("/super-admin/businesses") || p.startsWith("/super-admin/restaurants") },
+    { href: "/super-admin/tracking", label: "Track", icon: Truck, match: (p: string) => p.startsWith("/super-admin/tracking") },
     { href: "/super-admin/plans", label: "Plans", icon: BadgeCheck, match: (p: string) => p.startsWith("/super-admin/plans") },
     { href: "/super-admin/settings", label: "Settings", icon: Settings, match: (p: string) => p.startsWith("/super-admin/settings") },
     { href: "/super-admin/activity", label: "Activity", icon: ScrollText, match: (p: string) => p.startsWith("/super-admin/activity") },

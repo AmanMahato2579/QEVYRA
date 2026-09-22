@@ -174,3 +174,140 @@ export function describeSubscriptionState(input: {
     badge: entry.badge,
   };
 }
+
+// ─── Products ────────────────────────────────────────────────────────────────
+// QEVYRA functional products (Website / Menu / Order / Track / Track Pro) make
+// up the subscription model. `BusinessProduct` rows on a Business decide which
+// products it has active; plans (BRONZE/SILVER/STAR) remain as legacy billing
+// tiers. This catalog mirrors the `Product` table seeded in migrations.
+
+export type ProductTypeId = "WEBSITE" | "MENU" | "ORDER" | "TRACK" | "TRACK_PRO";
+
+export const PRODUCT_IDS: ProductTypeId[] = ["WEBSITE", "MENU", "ORDER", "TRACK", "TRACK_PRO"];
+
+export interface ProductDef {
+  id: ProductTypeId;
+  label: string;
+  shortLabel: string;
+  description: string;
+  /** Full flattened feature set the product unlocks (composition folded in). */
+  featureKeys: string[];
+  /** Default limits applied when the product is active (maxed across products). */
+  limits: Record<string, number>;
+  /** UI badge styling. */
+  badge: string;
+  isVisible: boolean;
+}
+
+export const PRODUCT_CATALOG: ProductDef[] = [
+  {
+    id: "WEBSITE",
+    label: "Website",
+    shortLabel: "Web",
+    description: "A modern public website for your business.",
+    featureKeys: ["business_website"],
+    limits: {},
+    badge: "bg-sky-500/20 text-sky-300 border border-sky-500/40",
+    isVisible: true,
+  },
+  {
+    id: "MENU",
+    label: "Menu",
+    shortLabel: "Menu",
+    description: "Digital menu with QR tables for dine-in menus.",
+    featureKeys: ["restaurant_profile", "digital_menu", "menu_management", "qr_tables", "business_website"],
+    limits: { qrTables: 10 },
+    badge: "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40",
+    isVisible: true,
+  },
+  {
+    id: "ORDER",
+    label: "Order",
+    shortLabel: "Order",
+    description: "QR ordering, order management and the kitchen workflow.",
+    featureKeys: [
+      "restaurant_profile",
+      "digital_menu",
+      "menu_management",
+      "qr_tables",
+      "ordering",
+      "table_ordering",
+      "order_management",
+      "kitchen_workflow",
+      "order_history",
+      "bookings",
+      "business_website",
+    ],
+    limits: { qrTables: 20 },
+    badge: "bg-orange-500/20 text-orange-300 border border-orange-500/40",
+    isVisible: true,
+  },
+  {
+    id: "TRACK",
+    label: "Track",
+    shortLabel: "Track",
+    description: "Customer ticket tracking for service businesses.",
+    featureKeys: ["business_website", "business_track"],
+    limits: { workflows: 5 },
+    badge: "bg-violet-500/20 text-violet-300 border border-violet-500/40",
+    isVisible: true,
+  },
+  {
+    id: "TRACK_PRO",
+    label: "Track Pro",
+    shortLabel: "Track Pro",
+    description: "Track with more workflows and automation.",
+    featureKeys: ["business_website", "business_track"],
+    limits: { workflows: 20 },
+    badge: "bg-purple-500/20 text-purple-300 border border-purple-500/40",
+    isVisible: false,
+  },
+];
+
+export const PRODUCT_CATALOG_BY_ID: Record<ProductTypeId, ProductDef> = Object.fromEntries(
+  PRODUCT_CATALOG.map((p) => [p.id, p])
+) as Record<ProductTypeId, ProductDef>;
+
+export function productById(id: ProductTypeId): ProductDef {
+  return PRODUCT_CATALOG_BY_ID[id];
+}
+
+export function productLabel(id: ProductTypeId): string {
+  return productById(id)?.label ?? id;
+}
+
+/** Union of feature keys unlocked by the given set of ACTIVE products. */
+export function aggregateProductFeatures(products: { productId: ProductTypeId; isActive: boolean }[]): string[] {
+  const set = new Set<string>();
+  for (const row of products) {
+    if (!row.isActive) continue;
+    const def = PRODUCT_CATALOG_BY_ID[row.productId];
+    if (!def) continue;
+    for (const key of def.featureKeys) set.add(key);
+  }
+  return [...set];
+}
+
+/** Max per-limit across the ACTIVE products (higher tiers raise the ceiling). */
+export function aggregateProductLimits(products: { productId: ProductTypeId; isActive: boolean }[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const row of products) {
+    if (!row.isActive) continue;
+    const def = PRODUCT_CATALOG_BY_ID[row.productId];
+    if (!def) continue;
+    for (const [key, value] of Object.entries(def.limits)) {
+      out[key] = Math.max(out[key] ?? 0, value);
+    }
+  }
+  return out;
+}
+
+/** Default visible products for a legacy plan + kind (used by the create flow
+ *  and as the products shown when a business has no BusinessProduct rows yet). */
+export function planProductsFor(kind: "menu" | "track", plan: PlanId): ProductTypeId[] {
+  if (plan === "STAR") return ["WEBSITE", "MENU", "ORDER", "TRACK", "TRACK_PRO"];
+  if (plan === "SILVER") {
+    return kind === "track" ? ["WEBSITE", "TRACK"] : ["WEBSITE", "MENU", "ORDER"];
+  }
+  return kind === "track" ? ["WEBSITE"] : ["WEBSITE", "MENU"];
+}

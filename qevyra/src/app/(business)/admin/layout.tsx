@@ -22,7 +22,7 @@ export default async function AdminLayout({
     user.restaurantId
       ? prisma.restaurant.findUnique({
           where: { id: user.restaurantId },
-          select: { language: true, bookingsEnabled: true, brandColor: true },
+          select: { language: true, bookingsEnabled: true, brandColor: true, businessId: true },
         })
       : Promise.resolve(null),
   ]);
@@ -32,10 +32,24 @@ export default async function AdminLayout({
   bookingsEnabled = restaurant?.bookingsEnabled ?? false;
   brandColor = restaurant?.brandColor ?? "orange";
 
+  // Product-aware admin nav: fetch active products so the sidebar only shows
+  // features the business actually has. Empty set = legacy tenant → show all.
+  let activeProducts: string[] = [];
+  if (restaurant?.businessId) {
+    const rows = await prisma.businessProduct.findMany({
+      where: { businessId: restaurant.businessId, isActive: true },
+      select: { productId: true },
+    });
+    activeProducts = rows.map((r) => r.productId);
+  }
+  const hasMenu = activeProducts.length === 0 || activeProducts.includes("MENU");
+  const hasOrder = activeProducts.length === 0 || activeProducts.includes("ORDER");
+  const hasWebsite = activeProducts.length === 0 || activeProducts.includes("WEBSITE");
+
   return (
     <>
       <AuthStateWatcher />
-      <AdminShell user={user} initialUnreadCount={unreadCount} language={language} bookingsEnabled={bookingsEnabled} brandColor={brandColor}>
+      <AdminShell user={user} initialUnreadCount={unreadCount} language={language} bookingsEnabled={bookingsEnabled} brandColor={brandColor} hasMenu={hasMenu} hasOrder={hasOrder} hasWebsite={hasWebsite}>
         {children}
       </AdminShell>
     </>

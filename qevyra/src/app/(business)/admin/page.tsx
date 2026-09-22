@@ -24,7 +24,7 @@ export default async function AdminDashboard() {
 
   const statCards = [
     { label: t(lang, "Revenue Today", "आजको कमाइ"), value: formatCurrency(Number(stats.todaySales)), icon: Wallet, color: "text-green-600", bg: "bg-green-50" },
-    { label: t(lang, "Sessions Today", "आजका सेसनहरू"), value: stats.todaySessions, icon: CalendarDays, color: "text-blue-600", bg: "bg-blue-50" },
+    { label: t(lang, "Customer Sessions", "ग्राहक सेसनहरू"), value: stats.todaySessions, icon: CalendarDays, color: "text-blue-600", bg: "bg-blue-50" },
     { label: t(lang, "Active Tables", "चालू टेबलहरू"), value: stats.activeTables, icon: Armchair, color: "text-orange-600", bg: "bg-orange-50" },
     { label: t(lang, "Total Tables", "जम्मा टेबलहरू"), value: stats.totalTables, icon: LayoutGrid, color: "text-purple-600", bg: "bg-purple-50" },
   ];
@@ -34,7 +34,7 @@ export default async function AdminDashboard() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">{t(lang, "Dashboard", "ड्यासबोर्ड")}</h1>
-          <p className="text-gray-500 text-sm mt-1">{t(lang, "Overview of your restaurant today", "आज तपाईंको रेस्टुरेन्टको अवलोकन")}</p>
+          <p className="text-gray-500 text-sm mt-1">{t(lang, "Overview of your business today", "आज तपाईंको बिजनेसको अवलोकन")}</p>
         </div>
         <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-bold border ${planColor}`}>
           {plan}

@@ -53,7 +53,7 @@ export default function TrackAdminShell({
             </div>
             <div>
               <div className="font-bold text-sm leading-tight">QEVYRA Track</div>
-              <div className="text-xs text-white/50 leading-tight">Service admin</div>
+              <div className="text-xs text-white/50 leading-tight">Business Admin</div>
             </div>
           </div>
         </div>

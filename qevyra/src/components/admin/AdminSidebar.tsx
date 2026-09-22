@@ -29,24 +29,48 @@ interface AdminSidebarProps {
   onNavigate?: () => void;
   language?: string;
   bookingsEnabled?: boolean;
+  /** Product-aware gating: hide features the business hasn't purchased. Purely cosmetic for navigation only. */
+  hasMenu?: boolean;
+  hasOrder?: boolean;
+  hasWebsite?: boolean;
 }
 
-export default function AdminSidebar({ user, open = false, onNavigate, language = "EN", bookingsEnabled = false }: AdminSidebarProps) {
+type NavIcon = React.ComponentType<{ className?: string }>;
+
+interface NavItem {
+  href: string;
+  label: string;
+  icon: NavIcon;
+  exact?: boolean;
+  show: (flags: { bookingsEnabled: boolean; hasMenu: boolean; hasOrder: boolean; hasWebsite: boolean }) => boolean;
+}
+
+export default function AdminSidebar({
+  user,
+  open = false,
+  onNavigate,
+  language = "EN",
+  bookingsEnabled = false,
+  hasMenu = true,
+  hasOrder = true,
+  hasWebsite = true,
+}: AdminSidebarProps) {
   const pathname = usePathname();
 
-  const navItems = [
-    { href: "/admin", label: t(language, "Dashboard", "ड्यासबोर्ड"), icon: LayoutDashboard, exact: true },
-    { href: "/admin/service", label: t(language, "Take Order", "अर्डर लिनुहोस्"), icon: HandPlatter },
-    { href: "/admin/orders", label: t(language, "Orders", "अर्डरहरू"), icon: ClipboardList },
-    { href: "/admin/menu", label: t(language, "Menu", "मेनु"), icon: UtensilsCrossed },
-    { href: "/admin/website", label: t(language, "Website", "वेबसाइट"), icon: Globe },
-    { href: "/admin/tables", label: t(language, "Tables", "टेबलहरू"), icon: QrCode },
-    ...(bookingsEnabled
-      ? [{ href: "/admin/bookings", label: t(language, "Bookings", "बुकिङहरू"), icon: CalendarCheck } as const]
-      : []),
-    { href: "/admin/notifications", label: t(language, "Notifications", "सूचनाहरू"), icon: Bell },
-    { href: "/admin/settings", label: t(language, "Settings", "सेटिङहरू"), icon: Settings },
+  const navItems: NavItem[] = [
+    { href: "/admin", label: t(language, "Dashboard", "ड्यासबोर्ड"), icon: LayoutDashboard, exact: true, show: () => true },
+    { href: "/admin/service", label: t(language, "Take Order", "अर्डर लिनुहोस्"), icon: HandPlatter, show: (f) => f.hasOrder },
+    { href: "/admin/orders", label: t(language, "Orders", "अर्डरहरू"), icon: ClipboardList, show: (f) => f.hasOrder },
+    { href: "/admin/menu", label: t(language, "Menu", "मेनु"), icon: UtensilsCrossed, show: (f) => f.hasMenu },
+    { href: "/admin/website", label: t(language, "Website", "वेबसाइट"), icon: Globe, show: (f) => f.hasWebsite },
+    { href: "/admin/tables", label: t(language, "Tables", "टेबलहरू"), icon: QrCode, show: (f) => f.hasOrder },
+    { href: "/admin/bookings", label: t(language, "Bookings", "बुकिङहरू"), icon: CalendarCheck, show: (f) => f.hasWebsite && f.bookingsEnabled },
+    { href: "/admin/notifications", label: t(language, "Notifications", "सूचनाहरू"), icon: Bell, show: () => true },
+    { href: "/admin/settings", label: t(language, "Settings", "सेटिङहरू"), icon: Settings, show: () => true },
   ];
+
+  const flags = { bookingsEnabled, hasMenu, hasOrder, hasWebsite };
+  const visibleNav = navItems.filter((n) => n.show(flags));
 
   return (
     <aside
@@ -64,20 +88,20 @@ export default function AdminSidebar({ user, open = false, onNavigate, language 
           </div>
           <div>
             <div className="font-bold text-sm leading-tight">QEVYRA</div>
-            <div className="text-xs text-white/50 leading-tight">{t(language, "Admin Panel", "एडमिन प्यानल")}</div>
+            <div className="text-xs text-white/50 leading-tight">{t(language, "Business Admin", "बिजनेस एडमिन")}</div>
           </div>
         </div>
       </div>
 
       {user.restaurantName && (
         <div className="px-6 py-3 border-b border-white/10">
-          <p className="text-xs text-white/40 uppercase tracking-wider mb-1">{t(language, "Restaurant", "रेस्टुरेन्ट")}</p>
+          <p className="text-xs text-white/40 uppercase tracking-wider mb-1">{t(language, "Business", "बिजनेस")}</p>
           <p className="text-sm font-medium text-white/80 truncate">{user.restaurantName}</p>
         </div>
       )}
 
       <nav className="flex-1 p-4 space-y-1">
-        {navItems.map(({ href, label, icon: Icon, exact }) => {
+        {visibleNav.map(({ href, label, icon: Icon, exact }) => {
           const isActive = exact ? pathname === href : pathname.startsWith(href);
           return (
             <Link

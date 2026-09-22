@@ -269,9 +269,9 @@ export function TrackingManageClient({ businesses }: { businesses: ManageBusines
     <div>
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold">Tracking service</h1>
+          <h1 className="text-xl font-bold">Track Businesses</h1>
           <p className="text-sm text-gray-400 mt-1">
-            Track-SaaS clients (garage, dry-clean, tailor, cleaning, repair…) — websites + live ticket tracking.
+            Track tenants (garage, dry-clean, tailor, cleaning, repair…) — public websites + live ticket tracking.
           </p>
         </div>
         <span className="text-xs px-3 py-1.5 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/30">
@@ -284,7 +284,7 @@ export function TrackingManageClient({ businesses }: { businesses: ManageBusines
         ))}
         {businesses.length === 0 && (
           <div className="text-center py-16 text-gray-500 text-sm">
-            No tracking clients yet. Create one from the Restaurants page with a track business type.
+            No track clients yet. Create one from the Businesses page with a service business type.
           </div>
         )}
       </div>

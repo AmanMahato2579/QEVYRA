@@ -3,8 +3,14 @@ import { Prisma } from "@prisma/client";
 import {
   ALL_FEATURE_KEYS,
   ALL_FEATURES_MARKER,
+  PRODUCT_IDS,
+  aggregateProductFeatures,
+  aggregateProductLimits,
   defaultPlanFor,
   isPlanId,
+  planProductsFor,
+  productById,
+  type ProductTypeId,
 } from "@/lib/plan-catalog";
 import { businessKindForType } from "@/lib/business-kind";
 import { logActivity } from "@/lib/activity";
@@ -12,19 +18,30 @@ import { logActivity } from "@/lib/activity";
 // ─── Effective Access ─────────────────────────────────────────────────────────
 // The single source of truth for what a business can do:
 //
-//   Business → Subscription → Plan → Plan features/limits → Customer overrides
-//   → Effective permissions → Application access
+//   Business → BusinessProduct (active products) → Product feature/limit sets
+//   → Customer overrides → Effective permissions → Application access
+//
+// Legacy plans (BRONZE/SILVER/STAR on Business.plan) remain as billing tiers
+// and as a fallback when a business has no BusinessProduct rows yet.
 //
 // Nothing else in the app should gate on `business.plan === "…"` directly.
 // The ORDER module resolves its tenant's plan through Restaurant.businessId.
 
 export interface BusinessAccessInput {
+  /** Business id — when present, access is derived from active BusinessProduct rows. */
+  id?: string | null;
   plan?: string | null;
   featureOverrides?: string | null;
   limitOverrides?: string | null;
   starNumber?: number | null;
-  /** BusinessType string — decides which product (menu vs track) the plan applies to. */
+  /** BusinessType string — legacy fallback product selection. */
   type?: string | null;
+}
+
+export interface EffectiveProduct {
+  id: ProductTypeId;
+  isActive: boolean;
+  label: string;
 }
 
 export interface EffectiveAccess {
@@ -33,6 +50,8 @@ export interface EffectiveAccess {
   starNumber: number | null;
   features: Record<string, boolean>;
   limits: Record<string, number>;
+  /** Which QEVYRA products are granted/active for this business. */
+  products: EffectiveProduct[];
 }
 
 export function parseFeatureKeys(json: string | null | undefined): string[] {
@@ -73,35 +92,54 @@ export function serializeOverrides(obj: Record<string, unknown>): string {
 }
 
 /**
- * Effective feature/limit access for a business given its plan + overrides.
- * STAR uses the ALL_CURRENT_FEATURES marker: any feature later added to the
- * catalog is automatically available to Star customers.
+ * Effective feature/limit access for a business given its active products (and
+ * legacy plan + overrides). STAR uses the ALL_CURRENT_FEATURES marker: any
+ * feature later added to the catalog is automatically available to Star
+ * customers.
  *
- * Plans are product-aware: a menu-kind business (restaurant, homestay, hotel)
- * gets the QR-menu tiers (BRONZE = menu + website, SILVER = + ordering), and a
- * track-kind business (tailor, garage, dry-cleaning, …) gets the Track tiers
- * (BRONZE = website only, SILVER = website + tracking). Product features never
- * leak across: a track tenant can never unlock menu features, and vice-versa,
- * unless the platform explicitly turns them on in a feature override.
+ * Access is product-driven: when the business has BusinessProduct rows, the
+ * union of the active products' feature/limit sets (Plan-catalog) is the
+ * access. A legacy plan-only business falls back to the product-aware plan
+ * tiers (menu kind → QR-menu tiers, track kind → Track tiers), so a track
+ * tenant can never unlock menu features, and vice-versa, unless an override
+ * explicitly grants them.
  */
 export async function getEffectiveAccess(business: BusinessAccessInput): Promise<EffectiveAccess> {
   const planId = business.plan && isPlanId(business.plan) ? business.plan : "STAR";
   const kind = businessKindForType(business.type);
+  const isStar = business.starNumber != null;
+
+  // Product-driven path: active BusinessProduct rows are the source of truth.
+  let productRows: { productId: ProductTypeId; isActive: boolean }[] | null = null;
+  if (business.id) {
+    const rows = await prisma.businessProduct.findMany({
+      where: { businessId: business.id, isActive: true },
+      select: { productId: true, isActive: true },
+    });
+    if (rows.length > 0) productRows = rows;
+  }
 
   let featureKeys: string[] | null = null;
   let limits: Record<string, number> | null = null;
 
-  const row = await prisma.plan.findUnique({ where: { id: planId } });
-  if (row && row.isActive) {
-    featureKeys = parseFeatureKeys(row.featureKeys);
-    limits = parseLimitKeys(row.limitKeys);
+  if (productRows && productRows.length > 0) {
+    featureKeys = aggregateProductFeatures(productRows);
+    limits = aggregateProductLimits(productRows);
+  } else {
+    // Legacy fallback: plan tiers per product kind.
+    const row = await prisma.plan.findUnique({ where: { id: planId } });
+    if (row && row.isActive) {
+      featureKeys = parseFeatureKeys(row.featureKeys);
+      limits = parseLimitKeys(row.limitKeys);
+    }
+    if (featureKeys === null) {
+      const def = defaultPlanFor(kind, planId);
+      featureKeys = def.features;
+      limits = def.limits;
+    }
   }
 
-  if (featureKeys === null) {
-    const def = defaultPlanFor(kind, planId);
-    featureKeys = def.features;
-    limits = def.limits;
-  }
+  if (isStar) featureKeys = ALL_FEATURE_KEYS;
 
   const base = new Set(featureKeys.includes(ALL_FEATURES_MARKER) ? ALL_FEATURE_KEYS : featureKeys);
 
@@ -113,23 +151,13 @@ export async function getEffectiveAccess(business: BusinessAccessInput): Promise
     if (ALL_FEATURE_KEYS.includes(key) && typeof value === "boolean") features[key] = value;
   }
 
-  // Product isolation: features owned by the other product stay off unless an
-  // override explicitly grants them.
-  const MENU_FAMILY = [
-    "restaurant_profile",
-    "digital_menu",
-    "menu_management",
-    "qr_tables",
-    "ordering",
-    "table_ordering",
-    "order_management",
-    "kitchen_workflow",
-    "order_history",
-  ] as const;
+  // Product isolation on the legacy path: features owned by the other product
+  // stay off unless an override explicitly grants them. Product rows already
+  // constrain access natively, so this only guards the plan-only fallback.
   if (kind === "track") {
-    for (const key of MENU_FAMILY) {
-      if (featureOverrides[key] !== true) features[key] = false;
-    }
+    if (featureOverrides["restaurant_profile"] !== true) features["restaurant_profile"] = false;
+    if (featureOverrides["digital_menu"] !== true) features["digital_menu"] = false;
+    if (featureOverrides["ordering"] !== true) features["ordering"] = false;
   } else {
     if (featureOverrides["business_track"] !== true) features["business_track"] = false;
   }
@@ -140,12 +168,25 @@ export async function getEffectiveAccess(business: BusinessAccessInput): Promise
     if (typeof value === "number" && Number.isFinite(value)) effectiveLimits[key] = value;
   }
 
+  // Product grant list for UIs. When rows exist, honor them; otherwise infer
+  // from the legacy plan + kind (same mapping used by the create flow).
+  const activeProductSet =
+    productRows && productRows.length > 0
+      ? new Set(productRows.map((r) => r.productId))
+      : new Set<ProductTypeId>(planProductsFor(kind, planId));
+  const products: EffectiveProduct[] = PRODUCT_IDS.map((id) => ({
+    id,
+    isActive: activeProductSet.has(id),
+    label: productById(id)?.label ?? id,
+  }));
+
   return {
     plan: planId,
-    isStar: business.starNumber != null,
+    isStar,
     starNumber: business.starNumber ?? null,
     features,
     limits: effectiveLimits,
+    products,
   };
 }
 
@@ -163,6 +204,17 @@ export function canUse(access: EffectiveAccess, feature: string): boolean {
 
 export function canBook(access: EffectiveAccess, bookingsEnabled: boolean): boolean {
   return hasFeature(access, "bookings") && bookingsEnabled;
+}
+
+/** Whether a business currently has the given product granted. */
+export function canUseProduct(access: EffectiveAccess, productId: ProductTypeId): boolean {
+  return access.products.some((p) => p.id === productId && p.isActive);
+}
+
+/** Whether a business has ANY product in a family (menu-family vs track-family). */
+export function canUseProductFamily(access: EffectiveAccess, family: "menu" | "track"): boolean {
+  const ids: ProductTypeId[] = family === "menu" ? ["MENU", "ORDER"] : ["TRACK", "TRACK_PRO"];
+  return ids.some((id) => canUseProduct(access, id));
 }
 
 /** Effective QR-table ceiling = plan limit (+ customer override). */
