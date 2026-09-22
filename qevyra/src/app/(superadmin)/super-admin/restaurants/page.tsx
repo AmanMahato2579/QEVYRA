@@ -18,7 +18,8 @@ export default async function RestaurantsPage() {
   // The client deals with the classic "restaurant card" (ORDER profile backed),
   // so a business without a Restaurant row still shows up as a row here.
   const rows = businesses.map((b) => {
-    const owner = b.users.find((u) => u.role === "RESTAURANT_ADMIN") ?? b.users[0] ?? null;
+    const owner =
+      b.users.find((u) => u.role === "RESTAURANT_ADMIN" || u.role === "TRACKING_ADMIN") ?? b.users[0] ?? null;
     return {
       id: b.restaurant?.id ?? `business-${b.id}`,
       name: b.name,

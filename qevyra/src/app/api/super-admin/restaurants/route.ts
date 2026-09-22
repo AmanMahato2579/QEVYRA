@@ -8,6 +8,7 @@ import { slugify } from "@/lib/utils";
 import { getPlatformSettings } from "@/lib/settings";
 import { logActivity } from "@/lib/activity";
 import { findPackage } from "@/lib/packages";
+import { isTrackBusinessType } from "@/lib/business-kind";
 
 const schema = z.object({
   name: z.string().min(2),
@@ -90,8 +91,10 @@ export async function POST(req: Request) {
 
   const passwordHash = await bcrypt.hash(tempPassword, 12);
 
-  // Create Business (universal tenant, owns the subscription) + linked
-  // Restaurant (ORDER-module profile) + owner + tables in one transaction.
+  // Create Business (universal tenant, owns the subscription) + owner +
+  // per-product profile. Track-kind businesses get no Restaurant/menu profile —
+  // their product is website + live ticket tracking, kept fully separate.
+  const isTrack = businessType ? isTrackBusinessType(businessType) : false;
   const result = await prisma.$transaction(async (tx) => {
     const business = await tx.business.create({
       data: {
@@ -134,53 +137,69 @@ export async function POST(req: Request) {
       },
     });
 
-    const restaurant = await tx.restaurant.create({
-      data: {
-        name,
-        slug,
-        phone,
-        address,
-        tableLimit: tableCount,
-        businessId: business.id,
-        isActive: true,
-      },
-    });
-
-    const user = await tx.user.create({
-      data: {
-        name: ownerName,
-        email: ownerEmail,
-        passwordHash,
-        role: "RESTAURANT_ADMIN",
-        restaurantId: restaurant.id,
-        businessId: business.id,
-      },
-    });
-
-    // Create tables
-    if (tableCount > 0) {
-      await tx.table.createMany({
-        data: Array.from({ length: tableCount }, (_, i) => ({
-          restaurantId: restaurant.id,
-          tableNumber: i + 1,
-        })),
+    let restaurant: { id: string; name: string; slug: string } | null = null;
+    let user;
+    if (isTrack) {
+      user = await tx.user.create({
+        data: {
+          name: ownerName,
+          email: ownerEmail,
+          passwordHash,
+          role: "TRACKING_ADMIN",
+          businessId: business.id,
+        },
       });
+    } else {
+      restaurant = await tx.restaurant.create({
+        data: {
+          name,
+          slug,
+          phone,
+          address,
+          tableLimit: tableCount,
+          businessId: business.id,
+          isActive: true,
+        },
+      });
+
+      const newRestaurantId = restaurant.id;
+
+      user = await tx.user.create({
+        data: {
+          name: ownerName,
+          email: ownerEmail,
+          passwordHash,
+          role: "RESTAURANT_ADMIN",
+          restaurantId: newRestaurantId,
+          businessId: business.id,
+        },
+      });
+
+      // Create tables
+      if (tableCount > 0) {
+        await tx.table.createMany({
+          data: Array.from({ length: tableCount }, (_, i) => ({
+            restaurantId: newRestaurantId,
+            tableNumber: i + 1,
+          })),
+        });
+      }
     }
 
     return { restaurant, user };
   });
 
   await logActivity("restaurant_created", {
-    restaurantId: result.restaurant.id,
-    restaurantName: result.restaurant.name,
+    restaurantId: result.restaurant?.id ?? null,
+    restaurantName: result.restaurant?.name ?? name,
     detail: isStar
       ? `Star founding assignment #${starNumber}`
       : `Plan: ${effectivePlan}${pkg ? ` · ${pkg.name}` : ""}${publishWebsite ? " · website live" : ""}`,
   });
   if (isStar) {
     await logActivity("star_assigned", {
-      restaurantId: result.restaurant.id,
-      restaurantName: result.restaurant.name,
+      restaurantId: result.restaurant?.id ?? null,
+      restaurantName: result.restaurant?.name ?? name,
       detail: `Star #${starNumber}`,
     });
   }

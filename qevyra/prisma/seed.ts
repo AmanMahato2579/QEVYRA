@@ -380,6 +380,28 @@ async function main() {
     console.log("Created Sita's Tailoring (Website + Track demo).");
   }
 
+  // The tailor demo needs its own Track admin + staff accounts to log in.
+  for (const acc of [
+    { email: "owner@tailor.com", name: "Sita Gurung" },
+    { email: "staff@tailor.com", name: "Ramesh Shrestha" },
+  ]) {
+    const existing = await prisma.user.findUnique({ where: { email: acc.email } });
+    if (!existing) {
+      await prisma.user.create({
+        data: {
+          email: acc.email,
+          name: acc.name,
+          passwordHash: await bcrypt.hash("Qevyra@123!", 10),
+          role: "TRACKING_ADMIN",
+          businessId: sita!.id,
+        },
+      });
+    }
+  }
+  if (sita) {
+    await prisma.user.updateMany({ where: { businessId: sita.id }, data: { role: "TRACKING_ADMIN" } });
+  }
+
   if (!restaurant) throw new Error("Unable to create or load the demo restaurant.");
 
   // Create Categories & Items if empty
@@ -561,7 +583,7 @@ async function main() {
         metaTitle: "Rapid Motor Garage & Showroom — Servicing",
         metaDescription: "Bike and car servicing with live job tracking, plus a small spares showroom.",
         heroTitle: "Rapid Motor Garage & Showroom",
-        heroSubtitle: "Book a service and follow your vehicle through every step of the workshop.",
+        heroSubtitle: "Bring your vehicle and follow it through every step of the workshop.",
         heroCtaLabel: "Track your service",
         heroCtaLink: "/track?business=rapid-motor-garage",
         aboutText: "Family-run workshop for bikes and cars — honest diagnosis, fair prices, live tracking.",
@@ -610,7 +632,7 @@ async function main() {
         metaTitle: "Sparkle Home Cleaning — Trusted Cleaners",
         metaDescription: "Home and office cleaning with a live job tracker so you know exactly when the crew arrives.",
         heroTitle: "Sparkle Home Cleaning",
-        heroSubtitle: "Book a clean and watch the crew move through their checklist in real time.",
+        heroSubtitle: "Let our crew handle it — follow your job through every step to done.",
         heroCtaLabel: "Track your cleaning",
         heroCtaLink: "/track?business=sparkle-home-cleaning",
         aboutText: "Vetted, insured cleaners for homes and offices across the valley.",
@@ -766,10 +788,18 @@ async function main() {
       const existing = await prisma.user.findUnique({ where: { email: acc.email } });
       if (!existing) {
         await prisma.user.create({
-          data: { email: acc.email, name: acc.name, passwordHash: seedHash, role: "RESTAURANT_ADMIN", businessId: biz.id },
+          data: { email: acc.email, name: acc.name, passwordHash: seedHash, role: "TRACKING_ADMIN", businessId: biz.id },
         });
       }
     }
+
+    // Track-saaS tenants always carry the TRACKING_ADMIN role — including any
+    // pre-existing accounts (e.g. the tailor demo) that were created earlier
+    // with the shared restaurant role.
+    await prisma.user.updateMany({
+      where: { businessId: biz.id },
+      data: { role: "TRACKING_ADMIN" },
+    });
 
     const existingWorkflow = await prisma.workflow.findFirst({
       where: { businessId: biz.id, codePrefix: def.workflow.codePrefix },

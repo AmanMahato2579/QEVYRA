@@ -18,7 +18,7 @@
 
 8. **Every table carries a tenant key.** Today `restaurantId`; after tenancy migration, `businessId`. New tables ship with `businessId` from day one.
 9. **No cross-tenant data flow.** Server code must derive the tenant from the authenticated session context — never from a client-supplied id alone for writes; public/anonymous reads re-validate ownership server-side (e.g. QR token + slug + `isActive`).
-10. **Roles stay minimal.** `SUPER_ADMIN` / `RESTAURANT_ADMIN` today; extend only through a deliberate, documented change. No new ad-hoc role checks in routes — use `src/lib/guards.ts` once extracted.
+10. **Roles stay minimal.** `SUPER_ADMIN` / `RESTAURANT_ADMIN` / `TRACKING_ADMIN` today; extend only through a deliberate, documented change. No new ad-hoc role checks in routes — use `src/lib/auth-guard.ts`.
 11. **Never log or store secrets** (passwords, VAPID private key, Prod DB URL). Seed/demo credentials only in `.env.example`.
 
 ## C. Data rules

@@ -1,7 +1,7 @@
 import { requireSuperAdmin } from "@/lib/auth-guard";
 import Link from "next/link";
 import AuthStateWatcher from "@/components/admin/AuthStateWatcher";
-import { LayoutDashboard, Building2, BadgeCheck, Settings, ScrollText, LogOut } from "lucide-react";
+import { LayoutDashboard, Building2, BadgeCheck, Settings, ScrollText, Truck, LogOut } from "lucide-react";
 import { signOut } from "@/lib/auth";
 
 export default async function SuperAdminLayout({ children }: { children: React.ReactNode }) {
@@ -10,6 +10,7 @@ export default async function SuperAdminLayout({ children }: { children: React.R
   const links = [
     { href: "/super-admin", label: "Overview", icon: LayoutDashboard, match: (p: string) => p === "/super-admin" },
     { href: "/super-admin/restaurants", label: "Restaurants", icon: Building2, match: (p: string) => p.startsWith("/super-admin/restaurants") },
+    { href: "/super-admin/tracking", label: "Tracking", icon: Truck, match: (p: string) => p.startsWith("/super-admin/tracking") },
     { href: "/super-admin/plans", label: "Plans", icon: BadgeCheck, match: (p: string) => p.startsWith("/super-admin/plans") },
     { href: "/super-admin/settings", label: "Settings", icon: Settings, match: (p: string) => p.startsWith("/super-admin/settings") },
     { href: "/super-admin/activity", label: "Activity", icon: ScrollText, match: (p: string) => p.startsWith("/super-admin/activity") },

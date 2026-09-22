@@ -66,7 +66,7 @@ function LoginForm() {
         router.push("/super-admin");
         return;
       }
-      router.push(isTrackBusinessType(u?.businessType) ? "/track-admin" : "/admin");
+      router.push(role === "TRACKING_ADMIN" || isTrackBusinessType(u?.businessType) ? "/track-admin" : "/admin");
     } catch (err) {
       console.error("Login submission error:", err);
       setError("An unexpected error occurred during sign in. Please try again.");

@@ -151,6 +151,7 @@ model BusinessCustomer {
 enum UserRole {
   SUPER_ADMIN
   RESTAURANT_ADMIN
+  TRACKING_ADMIN
 }
 
 // Editable plan catalog. featureKeys is a JSON array (or ["ALL_CURRENT_FEATURES"]

@@ -71,7 +71,7 @@ One PostgreSQL schema with a single Prisma client singleton (`src/lib/prisma.ts`
 
 Models (`prisma/schema.prisma`):
 
-- **User** — email (unique), bcrypt `passwordHash`, `role: SUPER_ADMIN | RESTAURANT_ADMIN`, optional `restaurantId`.
+- **User** — email (unique), bcrypt `passwordHash`, `role: SUPER_ADMIN | RESTAURANT_ADMIN | TRACKING_ADMIN`, optional `restaurantId` (menu product) or `businessId` (Track/Website tenants).
 - **Restaurant** — the tenant. Profile (`name`, unique `slug`, `description`, `logoUrl`, `address`, `phone`, `currency`, `openingHours`, `language`, `brandColor`), billing (`taxRate`, `isTaxEnabled`, `serviceChargeRate`, `isServiceChargeEnabled`), `tableLimit`, `isActive`, `bookingsEnabled`, plan + subscription fields (see §10), star fields (`starNumber`, `starNote`), JSON overrides (`featureOverrides`, `limitOverrides`).
 - **Table** — `restaurantId`, `tableNumber` (unique per restaurant), `qrToken` (unique — the QR value), `isActive`.
 - **TableSession** — lifecycle for one table visit (`ACTIVE | CLOSED`), `customerName`, per-session `applyTax` / `applyServiceCharge` toggles, `startedAt`/`closedAt`. Orders hang off a session.
@@ -89,9 +89,9 @@ Models (`prisma/schema.prisma`):
 - **AdminActivity** — lightweight audit trail of Super Admin actions.
 - **PlatformSetting** — key/value platform defaults (platformName, defaultTableLimit, defaultSubscriptionDays, newRestaurantNeverExpires, newRestaurantAutoOff).
 
-Enums: `UserRole`, `OrderStatus`, `OrderItemStatus`, `OrderSource`, `TableSessionStatus`, `NotificationType`, `BookableServiceType`, `BookingStatus`.
+Enums: `UserRole` (SUPER_ADMIN | RESTAURANT_ADMIN | TRACKING_ADMIN), `OrderStatus`, `OrderItemStatus`, `OrderSource`, `TableSessionStatus`, `NotificationType`, `BookableServiceType`, `BookingStatus`.
 
-Migration history is intentionally small: one full-schema `_init` baseline plus an additive `subscription_plans` overhaul. `scripts/prepare-db.mjs` self-heals databases created via `prisma db push` during Vercel builds.
+Migration history: `_init` baseline, `subscription_plans`, add `Website` (`website_additive`), `google_review_link` (Website.googleReviewUrl), and `tracking_admin_role` (UserRole gains TRACKING_ADMIN). `scripts/prepare-db.mjs` self-heals databases created via `prisma db push` during Vercel builds.
 
 ---
 
@@ -111,7 +111,10 @@ Migration history is intentionally small: one full-schema `_init` baseline plus 
   - `requireAuth()` → redirect `/login`
   - `requireSuperAdmin()` → redirect `/admin`
   - `requireRestaurantAdmin()` → also loads the restaurant and redirects to `/inactive` when the subscription is non-operational.
-- Two roles exist today: `SUPER_ADMIN` (platform) and `RESTAURANT_ADMIN` (one restaurant tenant).
+  - `loadBusinessContext()` + `requireBusinessAdmin()` → resolve either client role (RESTAURANT_ADMIN or TRACKING_ADMIN) to their `Business` tenant with effective plan access; redirect `/inactive`.
+- Roles: `SUPER_ADMIN` (platform), `RESTAURANT_ADMIN` (menu product tenant), `TRACKING_ADMIN` (Track product tenant — websites + live ticket tracking).
+- Product routing via `src/lib/business-kind.ts`: TRACK-kind business types (TAILOR, DRY_CLEANING, GARAGE, CLEANING, REPAIR, SERVICE, RETAIL) own the Track product; MENU-kind (RESTAURANT, HOMESTAY, HOTEL, OTHER) own the QR-menu product. `src/proxy.ts` routes signed-in users to `/track-admin` (track) vs `/admin` (menu) and blocks cross-product access.
+- The super admin manages each product from its own section: `/super-admin/tracking` (Track clients) vs `/super-admin/restaurants` (menu clients), backed by `PUT /api/super-admin/tracking/[businessId]`.
 - API authorization is **ad-hoc** — the pattern `const session = await auth(); (session?.user as { role?, restaurantId? })` is repeated in every route handler. There is no centralized API guard for restaurants.
 - All admin API queries scope Prisma by `restaurantId` from the session.
 

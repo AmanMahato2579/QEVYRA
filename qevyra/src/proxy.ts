@@ -18,7 +18,7 @@ export default auth((req) => {
     | { role?: string; businessType?: string | null }
     | undefined;
   const isSuper = user?.role === "SUPER_ADMIN";
-  const isTrackUser = isTrackBusinessType(user?.businessType);
+  const isTrackUser = user?.role === "TRACKING_ADMIN" || isTrackBusinessType(user?.businessType);
 
   if (isLoginPage && isLoggedIn) {
     if (isSuper) {

@@ -30,14 +30,15 @@ export type BusinessContext = {
 };
 
 /**
- * Resolve the authenticated restaurant-admin to their Business tenant with
+ * Resolve the authenticated client (RESTAURANT_ADMIN for the QR-menu product,
+ * TRACKING_ADMIN for the Track product) to their Business tenant with
  * effective plan access. Returns null when not authorized or not operational,
  * so pages can redirect and API routes can reply 403 — no redirects thrown here.
  */
 export async function loadBusinessContext(): Promise<BusinessContext | null> {
   const session = await auth();
   const user = session?.user as unknown as AdminUser | undefined;
-  if (!user || user.role !== UserRole.RESTAURANT_ADMIN) return null;
+  if (!user || (user.role !== UserRole.RESTAURANT_ADMIN && user.role !== UserRole.TRACKING_ADMIN)) return null;
 
   const businessId = (user as { businessId?: string | null }).businessId;
   if (!businessId) return null;

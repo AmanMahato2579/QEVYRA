@@ -3,9 +3,10 @@ import { Prisma } from "@prisma/client";
 import {
   ALL_FEATURE_KEYS,
   ALL_FEATURES_MARKER,
-  DEFAULT_PLAN_CONFIGS,
+  defaultPlanFor,
   isPlanId,
 } from "@/lib/plan-catalog";
+import { businessKindForType } from "@/lib/business-kind";
 import { logActivity } from "@/lib/activity";
 
 // ─── Effective Access ─────────────────────────────────────────────────────────
@@ -22,6 +23,8 @@ export interface BusinessAccessInput {
   featureOverrides?: string | null;
   limitOverrides?: string | null;
   starNumber?: number | null;
+  /** BusinessType string — decides which product (menu vs track) the plan applies to. */
+  type?: string | null;
 }
 
 export interface EffectiveAccess {
@@ -73,9 +76,17 @@ export function serializeOverrides(obj: Record<string, unknown>): string {
  * Effective feature/limit access for a business given its plan + overrides.
  * STAR uses the ALL_CURRENT_FEATURES marker: any feature later added to the
  * catalog is automatically available to Star customers.
+ *
+ * Plans are product-aware: a menu-kind business (restaurant, homestay, hotel)
+ * gets the QR-menu tiers (BRONZE = menu + website, SILVER = + ordering), and a
+ * track-kind business (tailor, garage, dry-cleaning, …) gets the Track tiers
+ * (BRONZE = website only, SILVER = website + tracking). Product features never
+ * leak across: a track tenant can never unlock menu features, and vice-versa,
+ * unless the platform explicitly turns them on in a feature override.
  */
 export async function getEffectiveAccess(business: BusinessAccessInput): Promise<EffectiveAccess> {
   const planId = business.plan && isPlanId(business.plan) ? business.plan : "STAR";
+  const kind = businessKindForType(business.type);
 
   let featureKeys: string[] | null = null;
   let limits: Record<string, number> | null = null;
@@ -87,7 +98,7 @@ export async function getEffectiveAccess(business: BusinessAccessInput): Promise
   }
 
   if (featureKeys === null) {
-    const def = DEFAULT_PLAN_CONFIGS[planId];
+    const def = defaultPlanFor(kind, planId);
     featureKeys = def.features;
     limits = def.limits;
   }
@@ -100,6 +111,27 @@ export async function getEffectiveAccess(business: BusinessAccessInput): Promise
   const featureOverrides = parseObjectOverrides(business.featureOverrides);
   for (const [key, value] of Object.entries(featureOverrides)) {
     if (ALL_FEATURE_KEYS.includes(key) && typeof value === "boolean") features[key] = value;
+  }
+
+  // Product isolation: features owned by the other product stay off unless an
+  // override explicitly grants them.
+  const MENU_FAMILY = [
+    "restaurant_profile",
+    "digital_menu",
+    "menu_management",
+    "qr_tables",
+    "ordering",
+    "table_ordering",
+    "order_management",
+    "kitchen_workflow",
+    "order_history",
+  ] as const;
+  if (kind === "track") {
+    for (const key of MENU_FAMILY) {
+      if (featureOverrides[key] !== true) features[key] = false;
+    }
+  } else {
+    if (featureOverrides["business_track"] !== true) features["business_track"] = false;
   }
 
   const limitOverrides = parseObjectOverrides(business.limitOverrides);

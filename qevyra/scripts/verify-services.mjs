@@ -19,6 +19,7 @@ const NEW_PASSWORD = "Qevyra@123!";
 const prisma = new PrismaClient({ datasourceUrl: process.env.DATABASE_URL });
 
 const results = [];
+let createdTicket = null;
 
 function cookieJar() { return new Map(); }
 function jarCookie(jar) { return [...jar.entries()].map(([k, v]) => `${k}=${v}`).join("; "); }
@@ -177,12 +178,14 @@ const staffAccounts = [
   { email: "staff@motorgarage.com", ticketCode: "MOT-0001", advance: true, type: "GARAGE" },
   { email: "staff@cleaning.com", ticketCode: "SPK-0001", advance: true, type: "CLEANING" },
   { email: "staff@repairhub.com", ticketCode: "RPX-0001", advance: false, type: "REPAIR" },
+  { email: "staff@tailor.com", ticketCode: "FIT-0001", advance: true, type: "TAILOR" },
   { email: "staff@homestay.com", advance: false, type: "HOMESTAY" },
 ];
 for (const s of staffAccounts) {
   await step(`worker login ${s.email}`, async () => {
     const r = await login(s.email, NEW_PASSWORD);
-    if (r.session?.user?.role !== "RESTAURANT_ADMIN") throw new Error("not RESTAURANT_ADMIN");
+    const expectedRole = s.type === "HOMESTAY" ? "RESTAURANT_ADMIN" : "TRACKING_ADMIN";
+    if (r.session?.user?.role !== expectedRole) throw new Error(`not ${expectedRole}`);
     if (r.session?.user?.businessType !== s.type) throw new Error(`businessType ${r.session?.user?.businessType}`);
     return `${r.session.user.email} (${r.session.user.businessType})`;
   });
@@ -204,14 +207,16 @@ for (const s of staffAccounts) {
       return "200";
     });
   }
-await step(`worker sees own tickets ${s.email}`, async () => {
+if (s.ticketCode) {
+    await step(`worker sees own tickets ${s.email}`, async () => {
       const jar = (await login(s.email, NEW_PASSWORD)).jar;
       const r = await req("GET", "/api/admin/track/tickets", { jar });
       if (r.status !== 200) throw new Error(`list ${r.status}: ${JSON.stringify(r.body)}`);
       const tickets = r.body?.tickets ?? [];
-      if (s.ticketCode && !tickets.some((t) => t.trackingCode === s.ticketCode)) throw new Error(`${s.ticketCode} not listed`);
+      if (!tickets.some((t) => t.trackingCode === s.ticketCode)) throw new Error(`${s.ticketCode} not listed`);
       return `count=${tickets.length}`;
     });
+  }
   if (s.advance) {
     await step(`worker advances ${s.ticketCode}`, async () => {
       const jar = (await login(s.email, NEW_PASSWORD)).jar;
@@ -241,12 +246,14 @@ const ownerAccounts = [
   { email: "owner@motorgarage.com", admin: "/track-admin" },
   { email: "owner@cleaning.com", admin: "/track-admin" },
   { email: "owner@repairhub.com", admin: "/track-admin" },
+  { email: "owner@tailor.com", admin: "/track-admin" },
   { email: "owner@homestay.com", admin: "/admin" },
 ];
 for (const o of ownerAccounts) {
   await step(`owner login + admin shell ${o.email}`, async () => {
     const r = await login(o.email, NEW_PASSWORD);
-    if (r.session?.user?.role !== "RESTAURANT_ADMIN") throw new Error("bad role");
+    const expectedRole = o.admin === "/admin" ? "RESTAURANT_ADMIN" : "TRACKING_ADMIN";
+    if (r.session?.user?.role !== expectedRole) throw new Error("bad role");
     const page = await req("GET", o.admin, { jar: r.jar });
     if (page.status !== 200) throw new Error(`admin shell ${o.admin} returned ${page.status}`);
     return r.session.user.email;
@@ -260,6 +267,47 @@ await step("track owner website editor", async () => {
   if (r.status !== 200) throw new Error(`website editor ${r.status}`);
   if (!r.text.includes("Google review link")) throw new Error("review field missing");
   return "editor with review field";
+});
+await step("garage owner creates a new ticket", async () => {
+  const jar = (await login("owner@motorgarage.com", NEW_PASSWORD)).jar;
+  const workflow = await prisma.workflow.findFirst({ where: { business: { slug: "rapid-motor-garage" }, isActive: true } });
+  if (!workflow) throw new Error("garage workflow missing");
+  const r = await req("POST", "/api/admin/track/tickets", {
+    jar,
+    json: {
+      workflowId: workflow.id,
+      customerName: "Verify Test Customer",
+      customerPhone: "+977-9800000000",
+      itemSummary: "Engine check + oil change (verify e2e)",
+    },
+  });
+  if (r.status !== 201 || !r.body?.ticket) throw new Error(`create ${r.status}: ${JSON.stringify(r.body)}`);
+  createdTicket = r.body.ticket;
+  if (!r.body.ticket.trackingCode) throw new Error("no tracking code");
+  return `code=${r.body.ticket.trackingCode}`;
+});
+await step("customer looks up the new ticket on the public site", async () => {
+  const r = await req("GET", `/track/${createdTicket.trackingCode}`, {});
+  if (r.status !== 200) throw new Error(`lookup ${r.status}`);
+  if (!r.text.includes(createdTicket.trackingCode)) throw new Error("code not shown");
+  if (!r.text.includes("Engine check + oil change (verify e2e)")) throw new Error("item summary missing");
+  return createdTicket.trackingCode;
+});
+await step("garage advances the ticket to ready", async () => {
+  const jar = (await login("owner@motorgarage.com", NEW_PASSWORD)).jar;
+  const r = await req("PATCH", `/api/admin/track/tickets/${createdTicket.id}`, { jar, json: { action: "advance" } });
+  if (r.status !== 200 && r.status !== 201) throw new Error(`advance ${r.status}: ${JSON.stringify(r.body)}`);
+  const status = r.body?.ticket?.status ?? r.body?.status ?? "?";
+  if (status !== "READY" && status !== "IN_PROGRESS") throw new Error(`unexpected status ${status}`);
+  return status;
+});
+await step("super-admin sees live ticket activity for garage", async () => {
+  const jar = (await login(SUPER_EMAIL, SUPER_PASSWORD)).jar;
+  const r = await req("GET", "/super-admin/tracking", { jar });
+  if (r.status !== 200) throw new Error(`tracking page ${r.status}`);
+  if (!r.text.includes("/b/rapid-motor-garage")) throw new Error("garage card missing");
+  if (!r.text.includes("In progress")) throw new Error("live ticket status not shown");
+  return "live ticket status shown";
 });
 
 console.log("== Super-admin overview ==");
@@ -290,6 +338,16 @@ await step("super-admin dashboard shows breakdown", async () => {
   }
   return "type breakdown present";
 });
+await step("super-admin tracking page (separate section)", async () => {
+  const jar = (await login(SUPER_EMAIL, SUPER_PASSWORD)).jar;
+  const r = await req("GET", "/super-admin/tracking", { jar });
+  if (r.status !== 200) throw new Error(`tracking page ${r.status}`);
+  if (!r.text.includes("Tracking service")) throw new Error("tracking section heading missing");
+  for (const n of ["kathmandu-dry-clean", "rapid-motor-garage", "sparkle-home-cleaning", "sitas-tailoring"]) {
+    if (!r.text.includes(n)) throw new Error(`track client "${n}" missing`);
+  }
+  return "track clients listed";
+});
 
 console.log("== Cleanup ==");
 try {
@@ -297,9 +355,16 @@ try {
   console.log("CLEANUP  removed test bookings");
 } catch (e) {
   console.log("CLEANUP  WARNING: " + e.message);
-} finally {
-  await prisma.$disconnect();
 }
+try {
+  if (createdTicket) await prisma.ticket.delete({ where: { id: createdTicket.id } });
+  console.log("CLEANUP  removed test ticket");
+} catch (e) {
+  console.log("CLEANUP  WARNING: " + e.message);
+}
+try {
+  await prisma.$disconnect();
+} catch { /* noop */ }
 
 const failed = results.filter((r) => !r.ok);
 console.log("");

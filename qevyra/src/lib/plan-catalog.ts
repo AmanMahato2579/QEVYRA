@@ -60,7 +60,7 @@ export interface PlanDefaults {
 
 export const DEFAULT_PLAN_CONFIGS: Record<PlanId, PlanDefaults> = {
   BRONZE: {
-    features: ["restaurant_profile", "digital_menu", "menu_management", "qr_tables"],
+    features: ["restaurant_profile", "digital_menu", "menu_management", "qr_tables", "business_website"],
     limits: { qrTables: 10 },
   },
   SILVER: {
@@ -74,11 +74,32 @@ export const DEFAULT_PLAN_CONFIGS: Record<PlanId, PlanDefaults> = {
       "order_management",
       "kitchen_workflow",
       "order_history",
+      "business_website",
     ],
     limits: { qrTables: 20 },
   },
   STAR: { features: [ALL_FEATURES_MARKER], limits: { qrTables: 50 } },
 };
+
+/**
+ * Track-SaaS product tiers. These plans describe what a Track tenant bought:
+ *   BRONZE — website only (a universal storefront for any shop in Nepal).
+ *   SILVER — website + the live ticket-tracking service.
+ *   STAR   — everything (special founding client, gives offers separately).
+ * Menu product tiers live in DEFAULT_PLAN_CONFIGS; STAR is shared (all).
+ */
+export const TRACK_PLAN_CONFIGS: Record<PlanId, PlanDefaults> = {
+  BRONZE: { features: ["business_website"], limits: { workflows: 1 } },
+  SILVER: { features: ["business_website", "business_track"], limits: { workflows: 5 } },
+  STAR: { features: [ALL_FEATURES_MARKER], limits: { workflows: 50 } },
+};
+
+/** The menu (QR ordering) product base configs — used when no DB Plan row exists. */
+export const MENU_PLAN_CONFIGS = DEFAULT_PLAN_CONFIGS;
+
+export function defaultPlanFor(kind: "menu" | "track", plan: PlanId): PlanDefaults {
+  return kind === "track" ? TRACK_PLAN_CONFIGS[plan] : DEFAULT_PLAN_CONFIGS[plan];
+}
 
 export function isPlanId(value: string | null | undefined): value is PlanId {
   return value != null && (PLAN_IDS as readonly string[]).includes(value);

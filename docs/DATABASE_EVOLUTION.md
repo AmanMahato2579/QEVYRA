@@ -8,7 +8,7 @@
 
 16 models / 8 enums. Tenant = `Restaurant`. Order-family tables carry `restaurantId`:
 
-- Identity/auth: `User` (role ∈ SUPER_ADMIN, RESTAURANT_ADMIN)
+- Identity/auth: `User` (role ∈ SUPER_ADMIN, RESTAURANT_ADMIN, TRACKING_ADMIN)
 - Tenant: `Restaurant` (profile, billing %, plan + subscription fields, star fields, feature/limit override JSON)
 - Order: `Table`, `TableSession`, `Category`, `MenuItem`, `MenuItemVariant`, `Order`, `OrderItem`, `OrderSequence`
 - Engagement: `Notification`, `BookableService`, `Booking`, `PushSubscription`

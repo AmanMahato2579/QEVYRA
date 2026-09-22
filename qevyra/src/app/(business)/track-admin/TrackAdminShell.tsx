@@ -25,10 +25,6 @@ export default function TrackAdminShell({
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
-
   const navItems = [
     { href: "/track-admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
     { href: "/track-admin/tickets", label: "Tickets", icon: ClipboardList },
@@ -74,6 +70,7 @@ export default function TrackAdminShell({
               <Link
                 key={href}
                 href={href}
+                onClick={() => setMobileOpen(false)}
                 className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
                   isActive

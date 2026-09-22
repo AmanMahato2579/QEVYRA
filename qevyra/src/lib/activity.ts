@@ -32,6 +32,7 @@ const ACTIONS: Record<string, string> = {
   plan_updated: "Plan configuration updated",
   settings_updated: "Platform settings updated",
   subscription_auto_off: "Subscription auto-off triggered",
+  tracking_updated: "Tracking business updated",
 };
 
 export function actionLabel(action: string): string {
