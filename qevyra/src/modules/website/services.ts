@@ -19,6 +19,88 @@ export type PublicWebsiteServiceButtons = {
   track: boolean;
 };
 
+export type SocialLinkKind = "facebook" | "instagram" | "tiktok" | "youtube";
+
+export type SocialLink = { kind: SocialLinkKind; url: string };
+
+const SOCIAL_KINDS = new Set<string>(["facebook", "instagram", "tiktok", "youtube"]);
+
+/**
+ * Parse the Website.socialLinks JSON blob into validated links.
+ * Only known kinds with https URLs survive — anything else is dropped,
+ * so the footer never renders a dead or spoofed icon.
+ */
+export function parseSocialLinks(raw: string | null | undefined): SocialLink[] {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    const out: SocialLink[] = [];
+    for (const entry of parsed) {
+      const kind = String((entry as { kind?: unknown } | null)?.kind ?? "").toLowerCase();
+      const url = String((entry as { url?: unknown } | null)?.url ?? "").trim();
+      if (SOCIAL_KINDS.has(kind) && /^https:\/\//i.test(url)) {
+        out.push({ kind: kind as SocialLinkKind, url });
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+const DAY_SHORT = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+function toMinutes(hour: number, minute: number, period: string): number {
+  const h = period.toUpperCase() === "PM" && hour !== 12 ? hour + 12 : period.toUpperCase() === "AM" && hour === 12 ? 0 : hour;
+  return h * 60 + minute;
+}
+
+/**
+ * Decide open-now from a strict "Day–Day: h:mm AM – h:mm PM" hours string.
+ * Returns null for anything unparseable — the page then omits the badge
+ * instead of guessing. Pure: pass `now` in tests.
+ */
+export function parseOpenNow(hours: string | null | undefined, now = new Date()): boolean | null {
+  if (!hours) return null;
+  try {
+    const m = hours
+      .trim()
+      .match(
+        /^([A-Za-z]{3})\s*[–-]\s*([A-Za-z]{3})\s*:\s*(\d{1,2}):(\d{2})\s*(AM|PM)\s*[–-]\s*(\d{1,2}):(\d{2})\s*(AM|PM)$/i,
+      );
+    if (!m) return null;
+    const startDay = DAY_SHORT.indexOf(m[1].toLowerCase());
+    const endDay = DAY_SHORT.indexOf(m[2].toLowerCase());
+    if (startDay < 0 || endDay < 0) return null;
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Kathmandu",
+      weekday: "short",
+      hour: "numeric",
+      minute: "numeric",
+      hour12: false,
+    }).formatToParts(now);
+    const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+    const today = DAY_SHORT.indexOf(get("weekday").toLowerCase().slice(0, 3));
+    if (today < 0) return null;
+    const inRange = startDay <= endDay ? today >= startDay && today <= endDay : today >= startDay || today <= endDay;
+    if (!inRange) return false;
+    const start = toMinutes(Number(m[3]), Number(m[4]), m[5]);
+    const end = toMinutes(Number(m[6]), Number(m[7]), m[8]);
+    const at = Number(get("hour")) * 60 + Number(get("minute"));
+    return end <= start ? at >= start || at < end : at >= start && at < end;
+  } catch {
+    return null;
+  }
+}
+
+/** Display price from a Prisma Decimal without trailing .00. Pure. */
+export function formatPrice(amount: number | string, currency: string): string {
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return `${currency} 0`;
+  return `${currency} ${Number.isInteger(n) ? String(n) : n.toFixed(2)}`;
+}
+
 /** Per-business-type button labels so each service line reads naturally. */
 export type ServiceButtonWording = {
   booking: string;
@@ -221,9 +303,16 @@ export type PublicWebsite = {
     mapUrl: string | null;
     footerText: string | null;
     googleReviewUrl: string | null;
+    socialLinks: string | null;
+    googleRating: number | null;
+    googleRatingCount: number | null;
   };
   meta: { metaTitle: string | null; metaDescription: string | null };
   services: PublicWebsiteServiceButtons;
+  menuPreview: {
+    currency: string;
+    items: { name: string; description: string | null; price: number; imageUrl: string | null; categoryName: string }[];
+  } | null;
 };
 
 /**
@@ -263,6 +352,45 @@ async function deriveServiceButtons(businessId: string): Promise<PublicWebsiteSe
 }
 
 /**
+ * Real menu items for the public "Popular Dishes" strip. Tenant-scoped by
+ * business id, only available items in active categories. Returns null when
+ * there is nothing to show, so the page never renders a fake menu.
+ */
+async function getMenuPreview(
+  businessId: string,
+  take = 5,
+): Promise<PublicWebsite["menuPreview"]> {
+  const restaurant = await prisma.restaurant.findFirst({
+    where: { businessId, isActive: true },
+    select: { id: true, currency: true },
+  });
+  if (!restaurant) return null;
+  const items = await prisma.menuItem.findMany({
+    where: { restaurantId: restaurant.id, isAvailable: true, category: { isActive: true } },
+    orderBy: { createdAt: "asc" },
+    take,
+    select: {
+      name: true,
+      description: true,
+      price: true,
+      imageUrl: true,
+      category: { select: { name: true } },
+    },
+  });
+  if (items.length === 0) return null;
+  return {
+    currency: restaurant.currency,
+    items: items.map((m) => ({
+      name: m.name,
+      description: m.description,
+      price: Number(m.price),
+      imageUrl: m.imageUrl,
+      categoryName: m.category.name,
+    })),
+  };
+}
+
+/**
  * Public lookup by business slug. Only returns a page when the business is
  * active AND the website is published (configurable storefront).
  */
@@ -275,6 +403,7 @@ export async function getPublicWebsite(slug: string): Promise<PublicWebsite | nu
 
   const b = website.business;
   const services = await deriveServiceButtons(b.id);
+  const menuPreview = services.menu ? await getMenuPreview(b.id) : null;
   return {
     business: {
       name: b.name,
@@ -315,9 +444,13 @@ export async function getPublicWebsite(slug: string): Promise<PublicWebsite | nu
       mapUrl: website.mapUrl,
       footerText: website.footerText,
       googleReviewUrl: website.googleReviewUrl,
+      socialLinks: website.socialLinks,
+      googleRating: website.googleRating,
+      googleRatingCount: website.googleRatingCount,
     },
     meta: { metaTitle: website.metaTitle, metaDescription: website.metaDescription },
     services,
+    menuPreview,
   };
 }
 
