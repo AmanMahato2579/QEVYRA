@@ -307,14 +307,18 @@ export default function BusinessDetailClient({ business: b, activity }: Props) {
                 <p className="text-xs text-gray-400 flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Orders</p>
                 <p className="text-xl font-bold mt-1">{b.restaurant?._count.orders ?? 0}</p>
               </div>
-              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                <p className="text-xs text-gray-400 flex items-center gap-1"><Workflow className="w-3 h-3" /> Workflows</p>
-                <p className="text-xl font-bold mt-1">{b._count.workflows}</p>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                <p className="text-xs text-gray-400 flex items-center gap-1"><Ticket className="w-3 h-3" /> Tickets</p>
-                <p className="text-xl font-bold mt-1">{b._count.tickets}</p>
-              </div>
+              {b.products.some(p => p.productId === "TRACK" && p.isActive) && (
+                <>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs text-gray-400 flex items-center gap-1"><Workflow className="w-3 h-3" /> Workflows</p>
+                    <p className="text-xl font-bold mt-1">{b._count.workflows}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-4">
+                    <p className="text-xs text-gray-400 flex items-center gap-1"><Ticket className="w-3 h-3" /> Tickets</p>
+                    <p className="text-xl font-bold mt-1">{b._count.tickets}</p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
