@@ -290,6 +290,16 @@ model Website {
   // straight to the business's Google Maps review page. Optional.
   googleReviewUrl String?
 
+  // Social profile links (structured JSON, e.g. [{ "kind": "facebook", "url": … }]).
+  // Planned Phase W2 for the public footer — additive, never fabricated for a
+  // business that hasn't provided them.
+  socialLinks String?
+
+  // Google rating snapshot (phase W2): average star rating + review count for
+  // the "reviews" badge. Null by default — the number is NEVER invented.
+  googleRating      Float?
+  googleRatingCount Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
