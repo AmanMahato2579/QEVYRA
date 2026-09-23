@@ -79,6 +79,56 @@ export function serviceButtonWording(type: string, lang?: string): ServiceButton
 }
 
 /**
+ * Business-type-aware main-section title, used when the owner hasn't written
+ * their own. Keeps restaurants on "menu" terms, hotels on "rooms", service
+ * businesses on "services" and everything else on a neutral catalog heading —
+ * never forces a restaurant menu onto a tailor or a "menu" word on a hotel.
+ */
+export function categorySectionTitle(
+  content: { servicesTitle?: string | null },
+  type: string,
+  lang?: string,
+): string | null {
+  if (content.servicesTitle) return content.servicesTitle;
+  const nep = lang === "NEP";
+  const map: Record<string, { en: string; nep: string }> = {
+    HOMESTAY: { en: "Rooms & Suites", nep: "कोठा र सुइटहरू" },
+    HOTEL: { en: "Rooms & Suites", nep: "कोठा र सुइटहरू" },
+    TAILOR: { en: "Our Services", nep: "हाम्रा सेवाहरू" },
+    DRY_CLEANING: { en: "Our Prices", nep: "हाम्रा मूल्यहरू" },
+    GARAGE: { en: "Our Services", nep: "हाम्रा सेवाहरू" },
+    CLEANING: { en: "Our Services", nep: "हाम्रा सेवाहरू" },
+    REPAIR: { en: "Our Services", nep: "हाम्रा सेवाहरू" },
+    RETAIL: { en: "What We Offer", nep: "हामी के प्रस्ताव गर्छौं" },
+    RESTAURANT: { en: "Our Menu", nep: "हाम्रो मेनु" },
+    SERVICE: { en: "Our Services", nep: "हाम्रा सेवाहरू" },
+  };
+  const entry = map[type];
+  if (nep) return entry?.nep ?? "हामी के प्रस्ताव गर्छौं";
+  return entry?.en ?? "What We Offer";
+}
+
+export function categorySectionWords(
+  content: { servicesTitle?: string | null },
+  type: string,
+  lang?: string,
+): { title: string } {
+  return { title: categorySectionTitle(content, type, lang) || "" };
+}
+
+/**
+ * Business-type-aware catalog section title with fallback — the public page
+ * uses this so a restaurant section reads "Our Menu", a hotel "Rooms & Suites",
+ * a service business "Our Services" and a retail "What We Offer". Never forces
+ * irrelevant terminology onto a business type.
+ */
+export function sectionWords(type: string, lang?: string): string {
+  return categorySectionTitle({ servicesTitle: null }, type, lang) || "What We Offer";
+}
+
+export type PublicCityTz = string; // placeholder for city tz-related future work
+
+/**
  * One well-written, category-specific paragraph for each business line. Shown
  * on the public website when the owner hasn't written their own subtitle.
  */

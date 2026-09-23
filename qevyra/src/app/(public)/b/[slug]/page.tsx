@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getPublicWebsite, serviceButtonWording, categoryBlurb } from "@/modules/website/services";
+import { getPublicWebsite, serviceButtonWording, categoryBlurb, categorySectionTitle } from "@/modules/website/services";
 import { t } from "@/lib/i18n";
 import { Phone, MapPin, Clock, Globe, MessageCircle, Mail, ChevronRight, Utensils, CalendarCheck, Star, Languages } from "lucide-react";
 import TrackLookup from "./TrackLookup";
@@ -53,6 +53,7 @@ export default async function BusinessWebsitePage({ params, searchParams }: Page
 
   const words = serviceButtonWording(business.type, lang);
   const blurb = content.heroSubtitle || categoryBlurb(business.type, lang);
+  const sectionTitle = categorySectionTitle(content, business.type, lang);
   const hasReviewLink = Boolean(content.googleReviewUrl);
   const showTrack = site.services.track;
   const showMenu = site.services.menu;
@@ -183,7 +184,7 @@ export default async function BusinessWebsitePage({ params, searchParams }: Page
       {hasServices && (
         <section className="border-t border-white/10">
           <div className="max-w-5xl mx-auto px-6 py-16">
-            {content.servicesTitle && <h2 className="text-3xl font-bold">{content.servicesTitle}</h2>}
+            {(content.servicesTitle || sectionTitle) && <h2 className="text-3xl font-bold">{content.servicesTitle || sectionTitle}</h2>}
             {content.servicesText && <p className="mt-4 opacity-80 whitespace-pre-line leading-relaxed max-w-2xl">{content.servicesText}</p>}
           </div>
         </section>
