@@ -15,6 +15,15 @@ folders changed already (same URLs, new grouping).
 | `/r/{restaurantSlug}/t/{tableToken}` | QR table menu (menu/cart/order/bill/book) | Exists |
 | `/track/{trackingCode}` | Public ticket tracking page | Exists (Phase T1) — `/track` lookup honors `?business=` |
 
+## Sites storefronts (`(sites)`)
+
+| URL | What | Status |
+| :--- | :--- | :--- |
+| `/s/{slug}` | Sites storefront landing page (GENERAL / TRACKING / MENU) | Built (Phase A) |
+| `/s/{slug}/items` | Sites GENERAL items list (+ ad banner) | Built (Phase A) |
+| `/s/{slug}/menu` | Sites MENU view-only dishes & booking notice (+ ad banner) | Built (Phase A) |
+| `/s/{slug}/track` | Sites demo tracking page (+ ad banner) | Built (Phase A) |
+
 ## Business admin (`(business)`)
 
 | URL | What | Status |
