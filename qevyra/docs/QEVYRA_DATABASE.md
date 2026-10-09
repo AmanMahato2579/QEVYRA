@@ -12,6 +12,7 @@ ORDER   Restaurant, Category, MenuItem, MenuItemVariant, Table, TableSession,
         Order, OrderItem, OrderSequence, Notification, PushSubscription,
         BookableService, Booking
 TRACK   Workflow, WorkflowStep, Ticket, TicketStatusHistory, WorkflowSequence
+SITES   Site, SiteHighlight, SiteItem, SiteAd
 ```
 
 ## Applied 2026-09-21 — atomicity/security hardening
@@ -60,6 +61,16 @@ Introduces the functional subscription model decoupled from the legacy billing t
 - Migration backfills every existing Business with the product set matching its prior plan/type
   (STAR → all five; SILVER → Website+Menu+Order; track kinds → Website+Track; default →
   Website+Menu) and seeds the five catalog rows.
+
+## Applied 2026-09-30 — sites foundation (`20260930071612_sites_foundation`)
+
+Introduces the foundation tables for the `sites` module (Phase A public storefronts):
+
+- `enum SiteType` — `GENERAL`, `TRACKING`, `MENU`.
+- `model Site` — tenant-scoped storefront record (`businessId` required and unique FK to Business, `slug` unique, `type`, options: `enableItems`, `enableTrackOrder`, `enableAds`, `enableBooking`).
+- `model SiteHighlight` — showcase highlights per site (`siteId`, `businessId`, `sortOrder`).
+- `model SiteItem` — catalog items/dishes per site (`siteId`, `businessId`, `isActive`, `sortOrder`).
+- `model SiteAd` — platform-wide catalog for sponsored inner page banners (`isActive`, `sortOrder`).
 
 ## Planned schema changes (each needs a migration; decision with user at phase start)
 

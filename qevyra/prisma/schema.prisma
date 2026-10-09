@@ -87,6 +87,9 @@ model Business {
   // Product activation: which QEVYRA products the business is entitled to use.
   // This is the source of truth for feature/limit access (see plans.ts).
   products   BusinessProduct[]
+  site       Site?
+  siteHighlights SiteHighlight[]
+  siteItems  SiteItem[]
 
   @@index([slug])
   @@index([type])
@@ -775,4 +778,97 @@ enum TicketStatus {
   READY
   COMPLETED
   CANCELLED
+}
+
+// =============================================================================
+// SITES — template-driven public storefront module (Phase A)
+// =============================================================================
+
+enum SiteType {
+  GENERAL
+  TRACKING
+  MENU
+}
+
+model Site {
+  id               String          @id @default(cuid())
+  businessId       String          @unique
+  slug             String          @unique
+  type             SiteType
+  name             String
+  shortDescription String?
+  aboutText        String?
+  storyText        String?
+  logoUrl          String?
+  heroImageUrl     String?
+  primaryColor     String?
+  phone            String?
+  whatsapp         String?
+  addressText      String?
+  mapUrl           String?
+  openingHours     String?
+  googleReviewUrl  String?
+  socialLinks      Json?
+  isPublished      Boolean         @default(false)
+  enableItems      Boolean         @default(false)
+  enableTrackOrder Boolean         @default(false)
+  enableAds        Boolean         @default(false)
+  enableBooking    Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  business         Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  highlights       SiteHighlight[]
+  items            SiteItem[]
+
+  @@index([slug])
+  @@index([businessId])
+}
+
+model SiteHighlight {
+  id          String   @id @default(cuid())
+  siteId      String
+  businessId  String
+  title       String
+  description String?
+  imageUrl    String?
+  sortOrder   Int      @default(0)
+
+  site        Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([siteId, sortOrder])
+  @@index([businessId])
+}
+
+model SiteItem {
+  id          String   @id @default(cuid())
+  siteId      String
+  businessId  String
+  name        String
+  description String?
+  priceText   String?
+  imageUrl    String?
+  category    String?
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+
+  site        Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([siteId, sortOrder])
+  @@index([businessId])
+}
+
+model SiteAd {
+  id        String   @id @default(cuid())
+  title     String
+  imageUrl  String
+  linkUrl   String
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
 }
