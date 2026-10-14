@@ -57,8 +57,8 @@ export default async function TrackHomePage({
         <p className="text-gray-400 mb-10">
           {t(
             lang,
-            "Enter the tracking code you received — like",
-            "तपाईंले पाउनुभएको ट्र्याकिङ कोड लेख्नुहोस् — जस्तै",
+            "Enter the tracking code you received along with the phone number on the ticket — like",
+            "तपाईंले पाउनुभएको ट्र्याकिङ कोड र टिकटमा भएको फोन नम्बर लेख्नुहोस् — जस्तै",
           )}{" "}
           <span className="font-mono text-orange-300">MOMO-0001</span> — {t(lang, "to see live progress.", "लाइभ प्रगति हेर्न।")}
         </p>

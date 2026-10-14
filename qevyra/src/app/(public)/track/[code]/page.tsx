@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
 import type { Metadata } from "next";
 import { QRCodeSVG } from "qrcode.react";
 import { getPublicTicket } from "@/modules/track/services";
+import { rateLimit } from "@/lib/rate-limit";
 import { validBrandColor } from "@/lib/brand";
 import { t, orderStatusLabel } from "@/lib/i18n";
 import {
@@ -27,7 +29,7 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { code } = await params;
-  return { title: `Track ${code.toUpperCase()} | QEVYRA` };
+  return { title: `Track ${code.slice(0, 8)} | QEVYRA` };
 }
 
 const DARK_BADGES: Record<string, string> = {
@@ -49,6 +51,21 @@ export default async function TrackCodePage({ params, searchParams }: Props) {
   const { code } = await params;
   const { lang: langParam } = await searchParams;
   const lang = langParam === "NEP" ? "NEP" : "EN";
+
+  const h = await headers();
+  const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "unknown";
+  if (!rateLimit(`track-page:${ip}`, 120, 60_000)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-gray-800 text-white px-6 text-center">
+        <div>
+          <h1 className="text-2xl font-bold">Too many requests</h1>
+          <p className="text-gray-400 mt-2">{t(lang, "Please wait a moment and try again.", "कृपया केही बेर पर्खनुहोस् र फेरि प्रयास गर्नुहोस्।")}</p>
+          <Link href="/track" className="inline-block mt-6 text-orange-400 hover:underline">{t(lang, "Back to tracking", "ट्र्याकिङमा फर्कनुहोस्")}</Link>
+        </div>
+      </div>
+    );
+  }
+
   const ticket = await getPublicTicket(code);
   if (!ticket) notFound();
 
@@ -71,7 +88,7 @@ export default async function TrackCodePage({ params, searchParams }: Props) {
   const wa = whatsappLink(ticket.business.whatsapp || ticket.business.phone);
   const scanUrl =
     (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000") +
-    `/track/${ticket.trackingCode}`;
+    `/track/${code}`;
 
   return (
     <div data-brand={validBrandColor(ticket.business.brandColor)} className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-800 text-white">
@@ -117,7 +134,6 @@ export default async function TrackCodePage({ params, searchParams }: Props) {
           {ticket.itemSummary && (
             <p className="text-gray-300 mt-3">{ticket.itemSummary}</p>
           )}
-          {ticket.notes && <p className="text-gray-500 text-sm mt-1">{t(lang, "Note:", "टिप्पणी:")} {ticket.notes}</p>}
         </div>
 
         {/* Progress timeline */}

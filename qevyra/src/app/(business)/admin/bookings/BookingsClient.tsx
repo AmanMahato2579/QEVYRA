@@ -4,7 +4,9 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { t, orderStatusLabel } from "@/lib/i18n";
 import { useToast } from "@/components/ui/toast";
-import { Loader2, Phone, Users, Clock, StickyNote, Check, X, Trash2, CheckCheck, CalendarDays } from "lucide-react";
+import StatusTimeline from "@/components/admin/StatusTimeline";
+import type { StatusHistoryEntry } from "@/components/admin/StatusTimeline";
+import { Loader2, Phone, Users, Clock, StickyNote, Check, X, Trash2, CheckCheck, CalendarDays, History } from "lucide-react";
 
 interface BookingService {
   name: string;
@@ -23,6 +25,7 @@ interface Booking {
   status: string;
   createdAt: string;
   service: BookingService;
+  statusHistory: StatusHistoryEntry[];
 }
 
 interface Props {
@@ -44,6 +47,7 @@ export default function BookingsClient({ initialDate, initialBookings, language 
   const [bookings, setBookings] = React.useState<Booking[]>(initialBookings);
   const [loading, setLoading] = React.useState(false);
   const [updatingId, setUpdatingId] = React.useState<string | null>(null);
+  const [historyFor, setHistoryFor] = React.useState<Record<string, boolean>>({});
 
   React.useEffect(() => {
     let cancelled = false;
@@ -210,6 +214,21 @@ export default function BookingsClient({ initialDate, initialBookings, language 
                   <StickyNote className="w-4 h-4 text-gray-400 mt-0.5" /> {b.note}
                 </p>
               )}
+              <div className="border-t pt-2">
+                <button
+                  onClick={() => setHistoryFor((prev) => ({ ...prev, [b.id]: !prev[b.id] }))}
+                  className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-orange-600"
+                >
+                  <History className="w-3.5 h-3.5" />
+                  {t(language, "History", "इतिहास")}
+                  {Array.isArray(b.statusHistory) && b.statusHistory.length > 0 && ` (${b.statusHistory.length})`}
+                </button>
+                {historyFor[b.id] && (
+                  <div className="mt-2">
+                    <StatusTimeline lang={language} entries={b.statusHistory ?? []} />
+                  </div>
+                )}
+              </div>
             </div>
           ))}
         </div>

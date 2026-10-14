@@ -552,6 +552,7 @@ model Order {
   restaurant      Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   tableSession    TableSession @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
   orderItems      OrderItem[]
+  statusHistory   OrderStatusHistory[]
 
   @@unique([restaurantId, orderNumber])
   @@unique([tableSessionId, clientRequestId])
@@ -561,6 +562,24 @@ model Order {
   @@index([customerToken])
   @@index([restaurantId, createdAt])
   @@index([restaurantId, status, statusChangedAt])
+}
+
+// Immutable audit trail of an order's status lifecycle (created → accepted →
+// completed, or rejected). Mirrors TRACK's TicketStatusHistory. Written inside
+// the same transaction as the status change so history can never diverge from
+// the order; rows are never updated or deleted (cascade-removed with the order).
+model OrderStatusHistory {
+  id         String      @id @default(cuid())
+  orderId    String
+  fromStatus OrderStatus?
+  toStatus   OrderStatus
+  note       String?
+  createdAt  DateTime    @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([orderId, createdAt])
 }
 
 model OrderItem {
@@ -651,12 +670,30 @@ model Booking {
   restaurant      Restaurant      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   service         BookableService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   tableSession    TableSession?   @relation(fields: [tableSessionId], references: [id], onDelete: SetNull)
+  statusHistory   BookingStatusHistory[]
 
   @@index([restaurantId])
   @@index([serviceId])
   @@index([restaurantId, bookingDate])
   @@index([restaurantId, status])
   @@index([serviceId, bookingDate, status])
+}
+
+// Immutable audit trail of a booking's status lifecycle (requested → accepted →
+// completed, or rejected/cancelled). Written in the same transaction as the
+// status change; rows are append-only and cascade-removed with the booking.
+model BookingStatusHistory {
+  id         String        @id @default(cuid())
+  bookingId  String
+  fromStatus BookingStatus?
+  toStatus   BookingStatus
+  note       String?
+  createdAt  DateTime      @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@index([bookingId, createdAt])
 }
 
 model PushSubscription {
@@ -779,13 +816,16 @@ model WorkflowStep {
 }
 
 // One tracked job/case through a workflow. `trackingCode` (e.g. GAR-0001) is the
-// public identifier used by QR links and the customer tracking page.
+// human-friendly reference shown to staff/customers; `publicToken` is the
+// high-entropy, unguessable secret embedded in customer QR links so the public
+// tracking page can never be enumerated by guessing a sequential code.
 model Ticket {
   id           String   @id @default(cuid())
   businessId   String
   workflowId   String
   ticketNumber Int
   trackingCode String   @unique
+  publicToken  String   @unique
 
   customerName  String?
   customerPhone String?

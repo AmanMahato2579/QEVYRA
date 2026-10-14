@@ -10,8 +10,8 @@ CORE    Business, BusinessLocation, Product, BusinessProduct, User, Customer,
         BusinessCustomer, BusinessMembership, Plan, PlatformSetting, AdminActivity
 WEBSITE Website, WebsiteTheme
 ORDER   Restaurant, Category, MenuItem, MenuItemVariant, Table, TableSession,
-        Order, OrderItem, OrderSequence, Notification, PushSubscription,
-        BookableService, Booking
+        Order, OrderItem, OrderStatusHistory, OrderSequence, Notification,
+        PushSubscription, BookableService, Booking, BookingStatusHistory
 TRACK   Workflow, WorkflowStep, Ticket, TicketStatusHistory, WorkflowSequence
 SITES   Site, SiteHighlight, SiteItem, SiteAd
 ```
@@ -44,7 +44,8 @@ Migrations `20260921123000_audit_atomicity_2026` and `20260921124500_order_servi
   `restaurantId` during transition).
 - Global customers (`Customer`) + tenant membership (`BusinessCustomer`, `@@unique(businessId,
   customerId)`) → isolation.
-- Track codes: `Ticket.trackingCode` UNIQUE (e.g. `LAU-4821`); `Workflow @@unique(businessId,
+- Track codes: `Ticket.trackingCode` UNIQUE (e.g. `LAU-4821`) — human/staff reference only;
+  `Ticket.publicToken` UNIQUE (high-entropy secret for public tracking); `Workflow @@unique(businessId,
   codePrefix)`; `TicketStatusHistory` immutable (append-only transitions).
 - `Plan.featureKeys` JSON or `ALL_CURRENT_FEATURES`; `limitKeys` JSON (only `qrTables` defined today).
 
@@ -100,6 +101,41 @@ Staff layer (Phase 1) — business-scoped roles for logins.
 - **Additive only** — new enum + new table; no existing table altered. Existing owners keep
   working with zero membership rows.
 - Deploy: `npx prisma migrate deploy`.
+
+## Applied 2026-10-14 — order/booking status history (`20261014141119_add_order_booking_status_history`)
+
+Audit trails (build-plan gap 5), mirroring TRACK's `TicketStatusHistory`.
+
+- `model OrderStatusHistory` — append-only (`orderId`, `fromStatus OrderStatus?`,
+  `toStatus OrderStatus`, `note`, `createdAt`). Cascade-removed with the order. Indexes
+  `(orderId)` and `(orderId, createdAt)`.
+- `model BookingStatusHistory` — append-only (`bookingId`, `fromStatus BookingStatus?`,
+  `toStatus BookingStatus`, `note`, `createdAt`). Cascade-removed with the booking.
+- Rows are written in the **same transaction** as the status change so history can never drift
+  from the entity: order create (`PENDING`), waiter order (`ACCEPTED`), order accept/reject route,
+  `updateOrderStatus`, session close (`COMPLETED` via `createMany`), booking create (`PENDING`),
+  and `updateBookingStatus`.
+- **Additive only** — two new tables + two back-relations; no existing table or column altered.
+  Retention is unchanged: `daily-reset` deletes the parent order/booking, cascading history.
+- Deploy: `npx prisma migrate deploy` (never `db push` on production).
+
+## Applied 2026-10-14 — ticket public token (`20261014152000_add_ticket_public_token`)
+
+Closes the Track public-tracking enumeration hole (build-plan gap 6).
+
+- `Ticket.publicToken` — `TEXT NOT NULL UNIQUE`. A 192-bit `base64url` secret
+  (`crypto.randomBytes(24)`) generated per ticket and embedded in the customer QR/link.
+  The migration backfills existing rows with `md5(random() || clock_timestamp() || id)`
+  before setting `NOT NULL` (a backfill Prisma cannot generate itself).
+- Public lookup (`getPublicTicket`) now resolves by `publicToken`. The sequential,
+  guessable `trackingCode` (e.g. `MOMO-0001`) is staff/human reference only and is
+  **never** sufficient to open a tracking page.
+- Manual lost-link fallback `POST /api/track/lookup` requires `trackingCode` **plus** the
+  phone number recorded on the ticket (normalised), and is rate-limited (`lib/rate-limit.ts`).
+- Public payload (`PublicTicket`) drops internal `notes`; only customer-safe fields
+  (name, item summary, status, workflow, business contact) are exposed.
+- **Additive only** — one new column + unique index on `Ticket`; no other table altered.
+- Deploy: `npx prisma migrate deploy` (never `db push` on production).
 
 ## Planned schema changes (each needs a migration; decision with user at phase start)
 

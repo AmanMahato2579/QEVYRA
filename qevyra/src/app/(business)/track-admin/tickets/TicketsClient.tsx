@@ -24,6 +24,7 @@ import {
 interface Ticket {
   id: string;
   trackingCode: string;
+  publicToken: string;
   ticketNumber: number;
   status: "PLACED" | "IN_PROGRESS" | "READY" | "COMPLETED" | "CANCELLED";
   customerName: string | null;
@@ -118,7 +119,7 @@ export default function TicketsClient({ tickets, workflows, statusMeta }: Props)
         toast({
           title: `Ticket ${data.ticket.trackingCode} created`,
           variant: "success",
-          description: "Share the code or QR with your customer.",
+          description: `Share: ${window.location.origin}/track/${data.ticket.publicToken}`,
         });
         setForm({ workflowId: "", customerName: "", customerPhone: "", itemSummary: "", notes: "" });
         setShowForm(false);
@@ -157,9 +158,11 @@ export default function TicketsClient({ tickets, workflows, statusMeta }: Props)
     }
   };
 
-  const copyCode = async (ticket: Ticket) => {
+  const shareLink = (ticket: Ticket) => `${window.location.origin}/track/${ticket.publicToken}`;
+
+  const copyLink = async (ticket: Ticket) => {
     try {
-      await navigator.clipboard.writeText(ticket.trackingCode);
+      await navigator.clipboard.writeText(shareLink(ticket));
       setCopiedId(ticket.id);
       setTimeout(() => setCopiedId(null), 1500);
     } catch {
@@ -285,9 +288,9 @@ export default function TicketsClient({ tickets, workflows, statusMeta }: Props)
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <button
-                          onClick={() => copyCode(ticket)}
+                          onClick={() => copyLink(ticket)}
                           className="font-mono font-extrabold text-orange-600 hover:underline flex items-center gap-1"
-                          title="Copy code"
+                          title="Copy tracking link"
                         >
                           {ticket.trackingCode}
                           {copiedId === ticket.id ? <Check className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
@@ -310,7 +313,7 @@ export default function TicketsClient({ tickets, workflows, statusMeta }: Props)
                     <div className="flex flex-col items-end gap-2 shrink-0">
                       <div className="flex gap-2">
                         <a
-                          href={`/track/${ticket.trackingCode}`}
+                          href={`/track/${ticket.publicToken}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-300 text-gray-700 hover:bg-gray-50"
@@ -352,7 +355,7 @@ export default function TicketsClient({ tickets, workflows, statusMeta }: Props)
                   {qrId === ticket.id && (
                     <div className="mt-4 pt-4 border-t border-gray-100 flex items-center gap-4">
                       <div className="rounded-xl border border-gray-200 p-3 bg-white">
-                        <QRCodeSVG value={`${window.location.origin}/track/${ticket.trackingCode}`} size={96} />
+                        <QRCodeSVG value={`${window.location.origin}/track/${ticket.publicToken}`} size={96} />
                       </div>
                       <div>
                         <p className="text-sm font-semibold text-gray-900">Tracking QR</p>
@@ -360,12 +363,12 @@ export default function TicketsClient({ tickets, workflows, statusMeta }: Props)
                           Print this and attach it to the job. Customers scan it to follow progress.
                         </p>
                         <a
-                          href={`${window.location.origin}/track/${ticket.trackingCode}`}
+                          href={`${window.location.origin}/track/${ticket.publicToken}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xs text-blue-600 hover:underline mt-1 inline-block"
+                          className="text-xs text-gray-500 hover:underline break-all"
                         >
-                          {window.location.origin}/track/{ticket.trackingCode}
+                          {window.location.origin}/track/{ticket.publicToken}
                         </a>
                       </div>
                     </div>

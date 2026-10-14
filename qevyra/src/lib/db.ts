@@ -360,7 +360,7 @@ export async function createOrder(input: CreateOrderInput) {
     const total = roundMoney(subtotalSum.add(taxAmount).add(serviceChargeAmount));
     const orderNumber = await getNextOrderNumber(restaurantId, tx);
 
-    return tx.order.create({
+    const created = await tx.order.create({
       data: {
         orderNumber,
         restaurantId,
@@ -381,6 +381,10 @@ export async function createOrder(input: CreateOrderInput) {
         tableSession: { include: { table: true } },
       },
     });
+    await tx.orderStatusHistory.create({
+      data: { orderId: created.id, toStatus: "PENDING", note: "Order placed" },
+    });
+    return created;
   });
 
   const tableNumber = order.tableSession?.table?.tableNumber;
@@ -444,7 +448,7 @@ export async function createWaiterOrder(input: WaiterOrderInput) {
     const total = roundMoney(subtotalSum.add(taxAmount).add(serviceChargeAmount));
     const orderNumber = await getNextOrderNumber(restaurantId, tx);
 
-    return tx.order.create({
+    const created = await tx.order.create({
       data: {
         orderNumber,
         restaurantId,
@@ -472,6 +476,10 @@ export async function createWaiterOrder(input: WaiterOrderInput) {
         tableSession: { include: { table: true } },
       },
     });
+    await tx.orderStatusHistory.create({
+      data: { orderId: created.id, toStatus: "ACCEPTED", note: "Waiter order" },
+    });
+    return created;
   });
 
   return order;
@@ -501,9 +509,24 @@ export async function updateOrderStatus(
   restaurantId: string,
   status: OrderStatus
 ) {
-  return prisma.order.update({
-    where: { id: orderId, restaurantId }, // ensures tenant isolation
-    data: { status, statusChangedAt: new Date() },
+  return prisma.$transaction(async (tx) => {
+    // Tenant isolation: the order must belong to this restaurant.
+    const existing = await tx.order.findFirst({
+      where: { id: orderId, restaurantId },
+      select: { id: true, status: true },
+    });
+    if (!existing) throw Object.assign(new Error("Order not found"), { code: "NOT_FOUND" });
+
+    const updated = await tx.order.update({
+      where: { id: orderId, restaurantId },
+      data: { status, statusChangedAt: new Date() },
+    });
+    if (existing.status !== status) {
+      await tx.orderStatusHistory.create({
+        data: { orderId, fromStatus: existing.status, toStatus: status },
+      });
+    }
+    return updated;
   });
 }
 
@@ -786,7 +809,10 @@ export async function getAdminSessionOverview(restaurantId: string) {
       orders: {
         orderBy: { createdAt: "asc" },
         where: { status: { not: "REJECTED" } },
-        include: { orderItems: { orderBy: { createdAt: "asc" }, include: { menuItem: { select: { requiresPreparation: true } } } } },
+        include: {
+          orderItems: { orderBy: { createdAt: "asc" }, include: { menuItem: { select: { requiresPreparation: true } } } },
+          statusHistory: { orderBy: { createdAt: "asc" } },
+        },
       },
     },
     orderBy: { startedAt: "desc" },
@@ -1079,6 +1105,9 @@ export async function createBooking(input: {
       },
       select: { id: true },
     });
+    await tx.bookingStatusHistory.create({
+      data: { bookingId: booking.id, toStatus: "PENDING", note: "Booking requested" },
+    });
 
     const restaurant = await tx.restaurant.findUnique({
       where: { id: input.restaurantId },
@@ -1126,7 +1155,12 @@ export async function updateBookingStatus(
   if (!allowed[existing.status].includes(status)) {
     return { ok: false, error: "Cannot move a booking to that status" };
   }
-  await prisma.booking.update({ where: { id: bookingId }, data: { status } });
+  await prisma.$transaction(async (tx) => {
+    await tx.booking.update({ where: { id: bookingId }, data: { status } });
+    await tx.bookingStatusHistory.create({
+      data: { bookingId, fromStatus: existing.status, toStatus: status },
+    });
+  });
   return { ok: true };
 }
 
@@ -1136,6 +1170,7 @@ export async function getAdminBookings(restaurantId: string, bookingDate?: strin
     orderBy: [{ bookingDate: "desc" }, { startMinutes: "asc" }, { createdAt: "asc" }],
     include: {
       service: { select: { name: true, type: true } },
+      statusHistory: { orderBy: { createdAt: "asc" } },
     },
   });
 }

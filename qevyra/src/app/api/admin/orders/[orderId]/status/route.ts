@@ -45,9 +45,22 @@ export async function PATCH(
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
 
-  const updated = await prisma.order.update({
-    where: { id: orderId },
-    data: { status: parsed.data.status, statusChangedAt: new Date() },
+  const updated = await prisma.$transaction(async (tx) => {
+    const next = await tx.order.update({
+      where: { id: orderId },
+      data: { status: parsed.data.status, statusChangedAt: new Date() },
+    });
+    if (order.status !== parsed.data.status) {
+      await tx.orderStatusHistory.create({
+        data: {
+          orderId,
+          fromStatus: order.status,
+          toStatus: parsed.data.status,
+          note: parsed.data.status === "ACCEPTED" ? "Order accepted" : "Order rejected",
+        },
+      });
+    }
+    return next;
   });
 
   // Accepting an order also moves its pending items into the kitchen queue —

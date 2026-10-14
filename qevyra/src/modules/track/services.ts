@@ -1,9 +1,11 @@
 // QEVYRA Track — server service.
 // The "service tracking for every business" engine: a Business defines one or
 // more Workflows (a process with ordered steps) and issues a Ticket per job.
-// Each ticket carries a human-friendly tracking code (e.g. GAR-0001) that a
-// customer can follow on the public /track page. Everything is tenant-scoped
+// Each ticket carries a human-friendly tracking code (e.g. GAR-0001) for staff
+// plus an unguessable public token that customers follow on the public /track
+// page. Everything is tenant-scoped
 // through businessId and gated on the `business_track` plan feature.
+import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { Prisma, TicketStatus } from "@prisma/client";
 
@@ -43,6 +45,17 @@ export function normalizeCodePrefix(value: string): string {
 
 export function buildTrackingCode(prefix: string, ticketNumber: number): string {
   return `${prefix}-${String(ticketNumber).padStart(4, "0")}`;
+}
+
+/** 192-bit URL-safe secret used in customer QR links. Non-guessable, unlike the
+ *  sequential `trackingCode`, so the public tracking page cannot be enumerated. */
+export function generatePublicToken(): string {
+  return randomBytes(24).toString("base64url");
+}
+
+/** Digits-only phone normalization for customer self-lookup matching. */
+function normalizePhone(value: string): string {
+  return value.replace(/[^0-9]/g, "");
 }
 
 /** True when a Prisma error is a unique-constraint violation (P2002). */
@@ -233,6 +246,7 @@ export async function createTicket(businessId: string, input: TicketInput): Prom
             workflowId: workflow.id,
             ticketNumber,
             trackingCode,
+            publicToken: generatePublicToken(),
             customerName: input.customerName?.trim() || null,
             customerPhone: input.customerPhone?.trim() || null,
             itemSummary: input.itemSummary?.trim() || null,
@@ -394,7 +408,6 @@ export type PublicTicket = {
   createdAt: Date;
   customerName: string | null;
   itemSummary: string | null;
-  notes: string | null;
   currentStepId: string | null;
   business: {
     slug: string;
@@ -418,13 +431,15 @@ export type PublicTicket = {
   }[];
 };
 
-/** Public, read-only lookup of a ticket by its human tracking code. */
-export async function getPublicTicket(rawCode: string): Promise<PublicTicket | null> {
-  const code = rawCode.trim().toUpperCase();
-  if (!code) return null;
+/** Public, read-only lookup of a ticket by its unguessable `publicToken` (the
+ *  secret embedded in the customer's QR/link). Never look tickets up by the
+ *  sequential `trackingCode` alone — that would let anyone enumerate jobs. */
+export async function getPublicTicket(rawToken: string): Promise<PublicTicket | null> {
+  const token = rawToken.trim();
+  if (!token) return null;
 
   const ticket = await prisma.ticket.findUnique({
-    where: { trackingCode: code },
+    where: { publicToken: token },
     include: { business: true, workflow: true },
   });
   if (!ticket) return null;
@@ -451,7 +466,6 @@ export async function getPublicTicket(rawCode: string): Promise<PublicTicket | n
     createdAt: ticket.createdAt,
     customerName: ticket.customerName,
     itemSummary: ticket.itemSummary,
-    notes: ticket.notes,
     currentStepId: ticket.currentStepId,
     business: {
       slug: ticket.business.slug,
@@ -479,4 +493,25 @@ export async function getPublicTicket(rawCode: string): Promise<PublicTicket | n
       toStepName: h.toStep?.name ?? null,
     })),
   };
+}
+
+/** Manual lookup fallback for customers who lost their QR/link. The human
+ *  tracking code is sequential and guessable, so it is never sufficient on its
+ *  own: the caller must also supply the phone number recorded on the ticket.
+ *  Returns the public link token on a match, else null. */
+export async function lookupTicketByCodeAndPhone(
+  rawCode: string,
+  rawPhone: string
+): Promise<string | null> {
+  const code = rawCode.trim().toUpperCase();
+  const phone = normalizePhone(rawPhone);
+  if (!code || phone.length < 6) return null;
+
+  const ticket = await prisma.ticket.findUnique({
+    where: { trackingCode: code },
+    select: { publicToken: true, customerPhone: true },
+  });
+  if (!ticket || !ticket.customerPhone) return null;
+  if (normalizePhone(ticket.customerPhone) !== phone) return null;
+  return ticket.publicToken;
 }

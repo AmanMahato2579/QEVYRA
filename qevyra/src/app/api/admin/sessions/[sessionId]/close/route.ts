@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { apiGuard } from "@/lib/api-guard";
+import { OrderStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 
 export async function POST(
@@ -24,13 +25,27 @@ export async function POST(
     if (close.count !== 1) return false;
 
     // Automatically mark any remaining running orders in this session as COMPLETED
-    await tx.order.updateMany({
+    const running = await tx.order.findMany({
       where: {
         tableSessionId: sessionId,
         status: { notIn: ["COMPLETED", "REJECTED"] },
       },
-      data: { status: "COMPLETED", statusChangedAt: new Date() },
+      select: { id: true, status: true },
     });
+    if (running.length > 0) {
+      await tx.order.updateMany({
+        where: { id: { in: running.map((o) => o.id) } },
+        data: { status: "COMPLETED", statusChangedAt: new Date() },
+      });
+      await tx.orderStatusHistory.createMany({
+        data: running.map((o) => ({
+          orderId: o.id,
+          fromStatus: o.status,
+          toStatus: OrderStatus.COMPLETED,
+          note: "Session closed",
+        })),
+      });
+    }
     return true;
   });
 

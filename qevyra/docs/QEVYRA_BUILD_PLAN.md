@@ -23,8 +23,8 @@
 | Plans/modules | `Plan` + `Product` + `plan-catalog.ts` |
 | Public website | `Site` / `SiteHighlight` / `SiteItem` / `SiteAd` + `TemplateRenderer` + 15 sections |
 | Catalog | `Category`, `MenuItem`, `MenuItemVariant` |
-| QR / ordering | `Table`, `TableSession`, `Order`, `OrderItem`, `OrderSequence` |
-| Booking | `BookableService`, `Booking` |
+| QR / ordering | `Table`, `TableSession`, `Order`, `OrderItem`, `OrderStatusHistory`, `OrderSequence` |
+| Booking | `BookableService`, `Booking`, `BookingStatusHistory` |
 | Track | `Workflow`, `WorkflowStep`, `Ticket`, `TicketStatusHistory`, `WorkflowSequence` |
 | Audit / notify | `AdminActivity`, `Notification`, push (VAPID) |
 
@@ -34,8 +34,8 @@
 2. Staff layer: `BusinessMembership` + staff roles — **done** (`20261014131620_add_business_memberships`; effective staff role flows through `permissions.ts` and the session).
 3. Order/bill **transfer** (§7.5) — **done**. `transferTableSession` locks both `Table` rows, requires an active + unoccupied destination, and moves only `TableSession.tableId` (no line item/price/payment duplicated or deleted); route `POST /api/admin/tables/[tableId]/transfer`; audited via `AdminActivity` (`order_transferred`). No schema change.
 4. `InventoryItem` + `InventoryMovement`.
-5. `OrderStatusHistory`, `BookingStatusHistory`.
-6. Ticket security: high-entropy `publicToken` (hashed) + optional configurable `TicketItem`.
+5. `OrderStatusHistory`, `BookingStatusHistory` — **done** (`20261014141119_add_order_booking_status_history`). Append-only audit trails mirroring `TicketStatusHistory`; rows written in the same transaction as each status change (order create/accept/reject/session-close, booking create/status). Surfaced in the Orders admin (per-session History toggle, aggregated across the session's orders) and Bookings admin (per-booking History toggle) via the shared `StatusTimeline` component. No existing table altered.
+6. Ticket security — **done** (security portion; `20261014152000_add_ticket_public_token`). Added `Ticket.publicToken`, a high-entropy 192-bit `base64url` secret embedded in the customer QR/link. The public `/track/[code]` page now resolves by token instead of the guessable sequential `trackingCode`, so jobs can no longer be enumerated. Public payload no longer exposes internal notes. Lost-link fallback `/api/track/lookup` requires the code **and** the phone number on file (verified) and is rate-limited. `track-admin` now shares the token link/QR. **Not done:** `TicketItem` (configurable per-ticket line items) — deferred to a later Suite B pass.
 7. `NotificationEvent` + provider adapter (WhatsApp/SMS) with an honest "not connected" state.
 8. One canonical public site route (consolidate the `/b/[slug]` template onto the `Site` engine).
 9. `apiGuard` adoption — **done** for `/api/admin/*` and `/api/super-admin/*` (routes on `loadBusinessContext` kept as-is).
