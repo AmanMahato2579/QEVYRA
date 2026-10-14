@@ -1,5 +1,5 @@
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { apiGuard } from "@/lib/api-guard";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { httpUrlSchema } from "@/lib/utils";
@@ -19,16 +19,13 @@ const updateSchema = z.object({
   sortOrder: z.coerce.number().int().optional(),
 });
 
-async function getRestaurantId(): Promise<string | null> {
-  const session = await auth();
-  return (session?.user as { restaurantId?: string | null })?.restaurantId ?? null;
-}
-
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const restaurantId = await getRestaurantId();
+  const guard = await apiGuard({ permission: "bookings.manage" });
+  if (guard.error) return guard.error;
+  const restaurantId = guard.user.restaurantId;
   if (!restaurantId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
 
@@ -61,7 +58,9 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const restaurantId = await getRestaurantId();
+  const guard = await apiGuard({ permission: "bookings.manage" });
+  if (guard.error) return guard.error;
+  const restaurantId = guard.user.restaurantId;
   if (!restaurantId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
 

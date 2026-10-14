@@ -67,3 +67,25 @@ Next.js App Router, TypeScript, Tailwind, Radix UI, Prisma + PostgreSQL, NextAut
 
 Public routes are grouped under `(public)`, business admin under `(business)`, platform admin under
 `(superadmin)` — same URLs as before, only folder grouping changed. See QEVYRA_ROUTING.md.
+
+## 6. Platform foundation libs (Phase 1)
+
+Three pure/server modules centralize cross-cutting concerns so no route re-implements them
+(rule: route = guard → validate → service → reply):
+
+| File | Kind | Responsibility |
+| :--- | :--- | :--- |
+| `src/lib/permissions.ts` | pure | Permission catalog + role→permission map (platform roles **and** staff roles). `hasPermission(role, perm)`; `effectiveRole(platformRole, staffRole)` resolves a `BusinessMembership` role over the login role. Deny-by-default. |
+| `src/lib/api-guard.ts` | server-only | `apiGuard({ permission?, anyOf?, roles? })` → `{ user } | { error: Response }`; `superAdminGuard()`; `parseBody(req, zodSchema)` → `{ data } | { error: Response }`. Uses the effective (membership-aware) role. |
+| `src/lib/navigation.ts` | pure | `moduleFlagsFromProducts()` (product-driven module visibility) + `BUSINESS_NAV` catalog + `visibleBusinessNav({ kind, role, modules, bookingsEnabled })`. UI-only; the server guard is the real boundary. |
+
+Adoption is incremental: the admin + track shells render from `visibleBusinessNav`
+(`AdminSidebar`, `TrackAdminShell`), the admin layout derives module flags through
+`moduleFlagsFromProducts`, and every `/api/super-admin/*` route uses `superAdminGuard`
+(+ `parseBody` where it validates a body). Remaining routes migrate stage by stage.
+
+## 7. Multi-location
+
+`BusinessLocation` exists as a tenant-scoped entity (see QEVYRA_DATABASE.md). The first release
+typically has one location; location-scoped `locationId` FKs on tables/rooms/stock/bookings/staff
+are added later, per consumer, additively.

@@ -1,5 +1,5 @@
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { apiGuard } from "@/lib/api-guard";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { httpUrlSchema } from "@/lib/utils";
@@ -32,11 +32,6 @@ const itemSchema = z.object({
   }
 });
 
-async function getRestaurantId(): Promise<string | null> {
-  const session = await auth();
-  return (session?.user as { restaurantId?: string | null })?.restaurantId ?? null;
-}
-
 /** The item-level food type is derived from its variants (no separate input). */
 function deriveFoodType(variants: { foodType?: string | null }[]): "VEG" | "NON_VEG" | "NONE" {
   if (variants.some((v) => v.foodType === "NON_VEG")) return "NON_VEG";
@@ -45,7 +40,9 @@ function deriveFoodType(variants: { foodType?: string | null }[]): "VEG" | "NON_
 }
 
 export async function POST(req: Request) {
-  const restaurantId = await getRestaurantId();
+  const guard = await apiGuard({ permission: "catalog.manage" });
+  if (guard.error) return guard.error;
+  const restaurantId = guard.user.restaurantId;
   if (!restaurantId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();

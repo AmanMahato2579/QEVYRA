@@ -1,5 +1,5 @@
-import { auth } from "@/lib/auth";
 import { setOrderItemStatus, serveOrderItem, setOrderItemQuantity } from "@/lib/db";
+import { apiGuard } from "@/lib/api-guard";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -19,8 +19,9 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ itemId: string }> }
 ) {
-  const session = await auth();
-  const restaurantId = (session?.user as { restaurantId?: string | null })?.restaurantId;
+  const guard = await apiGuard({ permission: "orders.manage" });
+  if (guard.error) return guard.error;
+  const restaurantId = guard.user.restaurantId;
   if (!restaurantId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { itemId } = await params;
@@ -50,10 +51,8 @@ export async function PATCH(
 // Item deletion is intentionally not exposed: removing food goes through the
 // status lifecycle (CANCEL) so an audit trail is preserved in the bill.
 export async function DELETE(_req: Request) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const guard = await apiGuard({ permission: "orders.manage" });
+  if (guard.error) return guard.error;
   // Safer to refuse hard-delete of order items — use CANCEL instead.
   return NextResponse.json({ error: "Use Cancel instead of delete" }, { status: 405 });
 }

@@ -1,5 +1,5 @@
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { apiGuard } from "@/lib/api-guard";
 import { startOfBusinessDay } from "@/lib/db";
 import { NextResponse } from "next/server";
 
@@ -14,8 +14,9 @@ import { NextResponse } from "next/server";
  * Scoped to the authenticated restaurant to guarantee tenant isolation.
  */
 export async function POST() {
-  const session = await auth();
-  const restaurantId = (session?.user as { restaurantId?: string | null })?.restaurantId ?? null;
+  const guard = await apiGuard({ permission: "orders.manage" });
+  if (guard.error) return guard.error;
+  const restaurantId = guard.user.restaurantId ?? null;
   if (!restaurantId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

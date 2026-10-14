@@ -3,6 +3,7 @@ import type { NextAuthConfig } from "next-auth";
 type AuthUser = {
   id?: string;
   role?: string;
+  staffRole?: string | null;
   restaurantId?: string | null;
   restaurantSlug?: string | null;
   restaurantName?: string | null;
@@ -58,6 +59,7 @@ export const authConfig: NextAuthConfig = {
 const u = user as AuthUser;
 
         token.role = u.role;
+        token.staffRole = u.staffRole ?? null;
         token.restaurantId = u.restaurantId;
         token.restaurantSlug = u.restaurantSlug;
         token.restaurantName = u.restaurantName;
@@ -78,6 +80,7 @@ const u = user as AuthUser;
         const u = session.user as unknown as AuthUser;
 
         u.role = token.role as string | undefined;
+        u.staffRole = token.staffRole as string | null | undefined;
         u.restaurantId = token.restaurantId as string | undefined;
         u.restaurantSlug = token.restaurantSlug as string | undefined;
         u.restaurantName = token.restaurantName as string | undefined;

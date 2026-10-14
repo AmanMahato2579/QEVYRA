@@ -80,6 +80,8 @@ export interface AdminUser {
   email: string;
   name: string;
   role: UserRole;
+  /** Business-scoped staff role (from BusinessMembership); overrides `role` for permission checks inside the tenant. */
+  staffRole?: string | null;
   restaurantId: string | null;
   restaurantSlug: string | null;
   restaurantName: string | null;

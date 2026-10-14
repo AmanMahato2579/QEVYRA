@@ -80,10 +80,12 @@ model Business {
   // Website/Track has no Restaurant row).
   restaurant Restaurant?
   users      User[]
+  memberships BusinessMembership[]
   customers  BusinessCustomer[]
   website    Website?
   workflows  Workflow[]
   tickets    Ticket[]
+  locations  BusinessLocation[]
   // Product activation: which QEVYRA products the business is entitled to use.
   // This is the source of truth for feature/limit access (see plans.ts).
   products   BusinessProduct[]
@@ -94,6 +96,32 @@ model Business {
   @@index([slug])
   @@index([type])
   @@index([plan])
+}
+
+// A physical place a business operates from. The first release usually has one
+// location, but tables, rooms, courts, stock, bookings and staff assignments are
+// location-scoped in the target model. This entity exists now so multi-location
+// support is additive (add nullable `locationId` FKs later) rather than a
+// schema fork. Exactly one location may be flagged `isPrimary`.
+model BusinessLocation {
+  id           String   @id @default(cuid())
+  businessId   String
+  name         String
+  slug         String
+  address      String?
+  phone        String?
+  mapUrl       String?
+  openingHours String?
+  isPrimary    Boolean  @default(false)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, slug])
+  @@index([businessId])
+  @@index([businessId, isActive])
 }
 
 // Platform product catalog (seeded by super admin, mirror of plan-catalog.ts).
@@ -153,10 +181,32 @@ model User {
 
   business   Business?   @relation(fields: [businessId], references: [id], onDelete: SetNull)
   restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  memberships BusinessMembership[]
 
   @@index([email])
   @@index([businessId])
   @@index([restaurantId])
+}
+
+// Staff membership: links a login (User) to a tenant (Business) with a
+// business-scoped staff role. A user's effective permissions inside a business
+// come from here; `User.role` remains the platform login role for backward
+// compatibility. Additive — existing owner logins keep working with no rows.
+model BusinessMembership {
+  id         String    @id @default(cuid())
+  userId     String
+  businessId String
+  role       StaffRole @default(OWNER)
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, businessId])
+  @@index([businessId])
+  @@index([userId])
 }
 
 // Global customer identity. NEVER a per-tenancy table: a person is one record
@@ -199,6 +249,19 @@ enum UserRole {
   SUPER_ADMIN
   RESTAURANT_ADMIN
   TRACKING_ADMIN
+}
+
+// Business-scoped staff roles. Distinct from the three platform login roles
+// above; a BusinessMembership's role governs what a login may do in one tenant.
+enum StaffRole {
+  OWNER
+  MANAGER
+  FRONT_DESK
+  WAITER
+  KITCHEN
+  TECHNICIAN
+  INVENTORY
+  ACCOUNTANT
 }
 
 // QEVYRA functional products (what a business is entitled to USE), distinct

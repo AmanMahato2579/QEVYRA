@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { t } from "@/lib/i18n";
+import { visibleBusinessNav, type ModuleFlags } from "@/lib/navigation";
 import type { AdminUser } from "@/types";
 import {
   LayoutDashboard,
@@ -37,13 +38,19 @@ interface AdminSidebarProps {
 
 type NavIcon = React.ComponentType<{ className?: string }>;
 
-interface NavItem {
-  href: string;
-  label: string;
-  icon: NavIcon;
-  exact?: boolean;
-  show: (flags: { bookingsEnabled: boolean; hasMenu: boolean; hasOrder: boolean; hasWebsite: boolean }) => boolean;
-}
+// Presentation map for the shared business nav catalog (navigation.ts):
+// catalog decides WHAT is visible, this only supplies icon + bilingual label.
+const MENU_NAV: Record<string, { icon: NavIcon; label: [string, string] }> = {
+  dashboard: { icon: LayoutDashboard, label: ["Dashboard", "ड्यासबोर्ड"] },
+  "take-order": { icon: HandPlatter, label: ["Take Order", "अर्डर लिनुहोस्"] },
+  orders: { icon: ClipboardList, label: ["Orders", "अर्डरहरू"] },
+  menu: { icon: UtensilsCrossed, label: ["Menu", "मेनु"] },
+  website: { icon: Globe, label: ["Website", "वेबसाइट"] },
+  tables: { icon: QrCode, label: ["Tables", "टेबलहरू"] },
+  bookings: { icon: CalendarCheck, label: ["Bookings", "बुकिङहरू"] },
+  notifications: { icon: Bell, label: ["Notifications", "सूचनाहरू"] },
+  settings: { icon: Settings, label: ["Settings", "सेटिङहरू"] },
+};
 
 export default function AdminSidebar({
   user,
@@ -57,20 +64,18 @@ export default function AdminSidebar({
 }: AdminSidebarProps) {
   const pathname = usePathname();
 
-  const navItems: NavItem[] = [
-    { href: "/admin", label: t(language, "Dashboard", "ड्यासबोर्ड"), icon: LayoutDashboard, exact: true, show: () => true },
-    { href: "/admin/service", label: t(language, "Take Order", "अर्डर लिनुहोस्"), icon: HandPlatter, show: (f) => f.hasOrder },
-    { href: "/admin/orders", label: t(language, "Orders", "अर्डरहरू"), icon: ClipboardList, show: (f) => f.hasOrder },
-    { href: "/admin/menu", label: t(language, "Menu", "मेनु"), icon: UtensilsCrossed, show: (f) => f.hasMenu },
-    { href: "/admin/website", label: t(language, "Website", "वेबसाइट"), icon: Globe, show: (f) => f.hasWebsite },
-    { href: "/admin/tables", label: t(language, "Tables", "टेबलहरू"), icon: QrCode, show: (f) => f.hasOrder },
-    { href: "/admin/bookings", label: t(language, "Bookings", "बुकिङहरू"), icon: CalendarCheck, show: (f) => f.hasWebsite && f.bookingsEnabled },
-    { href: "/admin/notifications", label: t(language, "Notifications", "सूचनाहरू"), icon: Bell, show: () => true },
-    { href: "/admin/settings", label: t(language, "Settings", "सेटिङहरू"), icon: Settings, show: () => true },
-  ];
-
-  const flags = { bookingsEnabled, hasMenu, hasOrder, hasWebsite };
-  const visibleNav = navItems.filter((n) => n.show(flags));
+  const modules: ModuleFlags = { menu: hasMenu, order: hasOrder, website: hasWebsite, track: false };
+  const visibleNav = visibleBusinessNav({
+    kind: "menu",
+    role: user.staffRole ?? user.role,
+    modules,
+    bookingsEnabled,
+  }).flatMap((item) => {
+    const meta = MENU_NAV[item.key];
+    return meta
+      ? [{ href: item.href, label: t(language, meta.label[0], meta.label[1]), icon: meta.icon, exact: item.exact }]
+      : [];
+  });
 
   return (
     <aside

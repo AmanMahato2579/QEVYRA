@@ -1,5 +1,5 @@
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { apiGuard } from "@/lib/api-guard";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { BRAND_COLOR_KEYS } from "@/lib/brand";
@@ -27,8 +27,9 @@ const settingsSchema = z.object({
 });
 
 export async function PATCH(req: Request) {
-  const session = await auth();
-  const restaurantId = (session?.user as { restaurantId?: string | null })?.restaurantId;
+  const guard = await apiGuard({ permission: "business.settings.manage" });
+  if (guard.error) return guard.error;
+  const restaurantId = guard.user.restaurantId;
   if (!restaurantId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();

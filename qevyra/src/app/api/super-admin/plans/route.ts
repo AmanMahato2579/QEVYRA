@@ -1,14 +1,9 @@
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ALL_FEATURE_KEYS, ALL_FEATURES_MARKER } from "@/lib/plan-catalog";
 import { logActivity } from "@/lib/activity";
-
-async function isSuperAdmin() {
-  const session = await auth();
-  return (session?.user as { role?: string })?.role === "SUPER_ADMIN";
-}
+import { parseBody, superAdminGuard } from "@/lib/api-guard";
 
 const FEATURE_VALUES = [...ALL_FEATURE_KEYS, ALL_FEATURES_MARKER] as const;
 
@@ -33,18 +28,20 @@ const patchSchema = z.object({
 });
 
 export async function GET() {
-  if (!(await isSuperAdmin())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const guard = await superAdminGuard();
+  if (guard.error) return guard.error;
   const plans = await prisma.plan.findMany({ orderBy: { sortOrder: "asc" } });
   return NextResponse.json(plans);
 }
 
 export async function PATCH(req: Request) {
-  if (!(await isSuperAdmin())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const guard = await superAdminGuard();
+  if (guard.error) return guard.error;
 
-  const parsed = patchSchema.safeParse(await req.json());
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  const body = await parseBody(req, patchSchema);
+  if (body.error) return body.error;
 
-  const { id, ...data } = parsed.data;
+  const { id, ...data } = body.data;
   const plan = await prisma.plan.findUnique({ where: { id } });
   if (!plan) return NextResponse.json({ error: "Plan not found" }, { status: 404 });
 

@@ -6,7 +6,8 @@ production.
 ## Ownership map (verified in prisma/schema.prisma)
 
 ```
-CORE    Business, User, Customer, BusinessCustomer, Plan, PlatformSetting, AdminActivity
+CORE    Business, BusinessLocation, Product, BusinessProduct, User, Customer,
+        BusinessCustomer, BusinessMembership, Plan, PlatformSetting, AdminActivity
 WEBSITE Website, WebsiteTheme
 ORDER   Restaurant, Category, MenuItem, MenuItemVariant, Table, TableSession,
         Order, OrderItem, OrderSequence, Notification, PushSubscription,
@@ -71,6 +72,34 @@ Introduces the foundation tables for the `sites` module (Phase A public storefro
 - `model SiteHighlight` — showcase highlights per site (`siteId`, `businessId`, `sortOrder`).
 - `model SiteItem` — catalog items/dishes per site (`siteId`, `businessId`, `isActive`, `sortOrder`).
 - `model SiteAd` — platform-wide catalog for sponsored inner page banners (`isActive`, `sortOrder`).
+
+## Applied 2026-10-14 — business locations (`20261014113351_add_business_locations`)
+
+First step of the multi-location foundation (Phase 1).
+
+- `model BusinessLocation` — a physical place a business operates from (`businessId` FK,
+  `slug` unique per business, `address`/`phone`/`mapUrl`/`openingHours`, `isPrimary`,
+  `isActive`, timestamps). Table-scoped by `businessId`; unique `(businessId, slug)`.
+- **Additive only** — creates the new table; no existing table was altered. Location-scoped
+  `locationId` FKs (tables, rooms, stock, bookings, staff) are a deliberate later step once a
+  consumer needs them, so this migration cannot break the live order product.
+- Deploy: `npx prisma migrate deploy` (never `db push` on production).
+
+## Applied 2026-10-14 — business memberships (`20261014131620_add_business_memberships`)
+
+Staff layer (Phase 1) — business-scoped roles for logins.
+
+- `enum StaffRole` — `OWNER`, `MANAGER`, `FRONT_DESK`, `WAITER`, `KITCHEN`, `TECHNICIAN`,
+  `INVENTORY`, `ACCOUNTANT` (distinct from the three platform `UserRole`s).
+- `model BusinessMembership` — links a `User` to a `Business` with a `StaffRole`
+  (`@@unique([userId, businessId])`, `isActive`, timestamps; cascades from both).
+- A user's effective permissions inside a tenant come from their active membership role;
+  `User.role` remains the platform login role (backward compatible). Resolved by
+  `permissions.ts::effectiveRole(platformRole, staffRole)` and applied in `apiGuard`
+  (+ the session via `staffRole`).
+- **Additive only** — new enum + new table; no existing table altered. Existing owners keep
+  working with zero membership rows.
+- Deploy: `npx prisma migrate deploy`.
 
 ## Planned schema changes (each needs a migration; decision with user at phase start)
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
-import { auth } from "@/lib/auth";
+import { apiGuard } from "@/lib/api-guard";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/activity";
 
@@ -11,9 +11,10 @@ const changePasswordSchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const session = await auth();
-  const user = session?.user as { id?: string; restaurantId?: string | null } | undefined;
-  if (!user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const guard = await apiGuard({});
+  if (guard.error) return guard.error;
+  const userId = guard.user.id;
+  if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const parsed = changePasswordSchema.safeParse(await req.json());
   if (!parsed.success) {
@@ -24,7 +25,7 @@ export async function POST(req: Request) {
   const { currentPassword, newPassword } = parsed.data;
 
   const record = await prisma.user.findUnique({
-    where: { id: user.id },
+    where: { id: userId },
     select: { passwordHash: true, restaurantId: true },
   });
   if (!record?.passwordHash) return NextResponse.json({ error: "Account not found" }, { status: 404 });
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
   if (!matches) return NextResponse.json({ error: "Current password is incorrect" }, { status: 400 });
 
   await prisma.user.update({
-    where: { id: user.id },
+    where: { id: userId },
     data: {
       passwordHash: await bcrypt.hash(newPassword, 12),
       // Revoke every existing login (including this browser's) so all clients

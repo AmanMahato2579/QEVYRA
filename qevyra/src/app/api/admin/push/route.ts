@@ -1,8 +1,7 @@
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { apiGuard } from "@/lib/api-guard";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import type { AdminUser } from "@/types";
 
 const subscribeSchema = z.object({
   endpoint: z.string().url(),
@@ -17,9 +16,9 @@ const unsubscribeSchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const session = await auth();
-  const user = session?.user as unknown as AdminUser | undefined;
-  const restaurantId = user?.restaurantId;
+  const guard = await apiGuard({ permission: "notifications.manage" });
+  if (guard.error) return guard.error;
+  const restaurantId = guard.user.restaurantId;
   if (!restaurantId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -43,9 +42,9 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const session = await auth();
-  const user = session?.user as unknown as AdminUser | undefined;
-  const restaurantId = user?.restaurantId;
+  const guard = await apiGuard({ permission: "notifications.manage" });
+  if (guard.error) return guard.error;
+  const restaurantId = guard.user.restaurantId;
   if (!restaurantId) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

@@ -1,15 +1,12 @@
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { startOfBusinessDay } from "@/lib/db";
+import { apiGuard } from "@/lib/api-guard";
 import { NextResponse } from "next/server";
-
-async function getRestaurantId(): Promise<string | null> {
-  const session = await auth();
-  return (session?.user as { restaurantId?: string | null })?.restaurantId ?? null;
-}
+import { startOfBusinessDay } from "@/lib/db";
 
 export async function GET(req: Request) {
-  const restaurantId = await getRestaurantId();
+  const guard = await apiGuard({ permission: "notifications.manage" });
+  if (guard.error) return guard.error;
+  const restaurantId = guard.user.restaurantId;
   if (!restaurantId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const url = new URL(req.url);
@@ -33,7 +30,9 @@ export async function GET(req: Request) {
 }
 
 export async function PATCH() {
-  const restaurantId = await getRestaurantId();
+  const guard = await apiGuard({ permission: "notifications.manage" });
+  if (guard.error) return guard.error;
+  const restaurantId = guard.user.restaurantId;
   if (!restaurantId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const updated = await prisma.notification.updateMany({

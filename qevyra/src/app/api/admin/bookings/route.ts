@@ -1,14 +1,11 @@
-import { auth } from "@/lib/auth";
+import { apiGuard } from "@/lib/api-guard";
 import { NextResponse } from "next/server";
 import { getAdminBookings } from "@/lib/db";
 
-async function getRestaurantId(): Promise<string | null> {
-  const session = await auth();
-  return (session?.user as { restaurantId?: string | null })?.restaurantId ?? null;
-}
-
 export async function GET(req: Request) {
-  const restaurantId = await getRestaurantId();
+  const guard = await apiGuard({ permission: "bookings.view" });
+  if (guard.error) return guard.error;
+  const restaurantId = guard.user.restaurantId;
   if (!restaurantId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);

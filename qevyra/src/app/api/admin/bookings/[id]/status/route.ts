@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+import { apiGuard } from "@/lib/api-guard";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { updateBookingStatus } from "@/lib/db";
@@ -7,16 +7,13 @@ const statusSchema = z.object({
   status: z.enum(["ACCEPTED", "REJECTED", "CANCELLED", "COMPLETED"]),
 });
 
-async function getRestaurantId(): Promise<string | null> {
-  const session = await auth();
-  return (session?.user as { restaurantId?: string | null })?.restaurantId ?? null;
-}
-
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const restaurantId = await getRestaurantId();
+  const guard = await apiGuard({ permission: "bookings.manage" });
+  if (guard.error) return guard.error;
+  const restaurantId = guard.user.restaurantId;
   if (!restaurantId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { id } = await params;
 

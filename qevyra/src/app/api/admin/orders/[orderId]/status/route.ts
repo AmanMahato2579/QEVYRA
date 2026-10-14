@@ -1,10 +1,9 @@
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { apiGuard } from "@/lib/api-guard";
 import { createNotification } from "@/lib/notifications";
 import { orderRejectedMessage, orderRejectedTitle } from "@/lib/i18n";
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import type { AdminUser } from "@/types";
 
 const statusSchema = z.object({
   // Order-level status now only drives the intake/acknowledgment lifecycle.
@@ -17,13 +16,9 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ orderId: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const user = session.user as unknown as AdminUser;
-  const restaurantId = user.restaurantId;
+  const guard = await apiGuard({ permission: "orders.manage" });
+  if (guard.error) return guard.error;
+  const restaurantId = guard.user.restaurantId;
 
   if (!restaurantId) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });

@@ -122,11 +122,89 @@ export async function startTableSession(tableId: string, restaurantId: string, c
 export async function ensureTableSession(tableId: string, restaurantId: string) {
   const existing = await getActiveSession(tableId, restaurantId);
   if (existing) return existing;
+
   return prisma.tableSession.create({
     data: { tableId, restaurantId, status: "ACTIVE" },
   });
 }
 
+// ─── Session transfer (order/bill context) ────────────────────────────────────
+
+export type TransferSessionErrorCode =
+  | "SOURCE_NOT_FOUND"
+  | "DESTINATION_NOT_FOUND"
+  | "SAME_TABLE"
+  | "NO_ACTIVE_SESSION"
+  | "DESTINATION_OCCUPIED";
+
+export type TransferSessionResult =
+  | { ok: true; sessionId: string; fromTableNumber: number; toTableNumber: number }
+  | { ok: false; code: TransferSessionErrorCode };
+
+/**
+ * Move an active table session — and therefore the whole bill: every order and
+ * booking that references the session — from one table to another in the same
+ * restaurant. Line items, totals and payments are never touched; only the
+ * session's table context changes, so nothing is duplicated or deleted.
+ *
+ * Both Table rows are locked FOR UPDATE (in a stable id order so concurrent
+ * transfers cannot deadlock). The destination must be active and unoccupied, so
+ * two transfers can never land on the same free table.
+ */
+export async function transferTableSession(
+  restaurantId: string,
+  sourceTableId: string,
+  destinationTableId: string
+): Promise<TransferSessionResult> {
+  if (sourceTableId === destinationTableId) return { ok: false, code: "SAME_TABLE" };
+
+  return prisma.$transaction(async (tx) => {
+    const lockedIds = [sourceTableId, destinationTableId].sort();
+    await tx.$queryRaw`
+      SELECT id FROM "Table"
+      WHERE id IN (${Prisma.join(lockedIds)}) AND "restaurantId" = ${restaurantId}
+      ORDER BY id
+      FOR UPDATE`;
+
+    const [source, destination] = await Promise.all([
+      tx.table.findFirst({
+        where: { id: sourceTableId, restaurantId, isActive: true },
+        select: { id: true, tableNumber: true },
+      }),
+      tx.table.findFirst({
+        where: { id: destinationTableId, restaurantId, isActive: true },
+        select: { id: true, tableNumber: true },
+      }),
+    ]);
+    if (!source) return { ok: false as const, code: "SOURCE_NOT_FOUND" as const };
+    if (!destination) return { ok: false as const, code: "DESTINATION_NOT_FOUND" as const };
+
+    const session = await tx.tableSession.findFirst({
+      where: { tableId: sourceTableId, restaurantId, status: "ACTIVE" },
+      select: { id: true },
+      orderBy: { startedAt: "desc" },
+    });
+    if (!session) return { ok: false as const, code: "NO_ACTIVE_SESSION" as const };
+
+    const takenDestination = await tx.tableSession.findFirst({
+      where: { tableId: destinationTableId, restaurantId, status: "ACTIVE" },
+      select: { id: true },
+    });
+    if (takenDestination) return { ok: false as const, code: "DESTINATION_OCCUPIED" as const };
+
+    await tx.tableSession.update({
+      where: { id: session.id },
+      data: { tableId: destinationTableId },
+    });
+
+    return {
+      ok: true as const,
+      sessionId: session.id,
+      fromTableNumber: source.tableNumber,
+      toTableNumber: destination.tableNumber,
+    };
+  });
+}
 // ─── Menu queries ─────────────────────────────────────────────────────────────
 
 export async function getPublicMenu(restaurantId: string) {
