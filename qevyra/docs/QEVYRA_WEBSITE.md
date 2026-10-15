@@ -60,7 +60,7 @@ show reviews — decision deferred to the docs/database doc and the user.
 
 ## 3. What exists (verified)
 
-- `/b/{slug}` page renders a themed storefront from Business + Website content (dev smoke: 200).
+- Public storefront is consolidated onto the `sites` engine: `/s/{slug}` is canonical; the legacy `/b/{slug}` page now redirects there, and the `sites` service bridges `Business + Website` content when no `Site` row exists (build-plan gap 8).
 - `/admin/website` editor: theme picker, hero/about/services/contact/SEO sections, preview,
   save-draft/publish; gated on `business_website` feature.
 - `/api/admin/website` GET auto-creates a draft on first visit; PATCH upserts content.
@@ -72,5 +72,5 @@ show reviews — decision deferred to the docs/database doc and the user.
 - `/` is QEVYRA-branded with Products/Pricing/Contact/Login.
 - One template renders a restaurant, a track business, and a normal business — correct buttons, no
   fake button when no engine is linked; normal business looks complete without a service section.
-- lint + typecheck + build green; `/b/demo-restaurant` and `/b` non-restaurant cases smoke-tested.
+- lint + typecheck + build green; `/s/demo-restaurant` and a non-restaurant business case smoke-tested.
 - docs/QEVYRA_WEBSITE.md updated in the same change.

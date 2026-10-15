@@ -116,8 +116,8 @@ function BusinessCard({ b }: { b: ManageBusiness }) {
             </div>
             <div className="text-xs text-gray-400">
               {b.type.replaceAll("_", " ").toLowerCase()} ·{" "}
-              <Link className="text-purple-300 hover:underline inline-flex items-center gap-1" href={`/b/${b.slug}`} target="_blank">
-                qevyra.com/b/{b.slug} <ExternalLink className="w-3 h-3" />
+              <Link className="text-purple-300 hover:underline inline-flex items-center gap-1" href={`/s/${b.slug}`} target="_blank">
+                qevyra.com/s/{b.slug} <ExternalLink className="w-3 h-3" />
               </Link>
             </div>
           </div>

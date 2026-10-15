@@ -26,8 +26,8 @@
 ## Website engine (`modules/website` — exists)
 
 - Business website template + themes (`WebsiteTheme`) + content (`Website`).
-- Public rendering `/b/{slug}`.
-- Admin editor `/admin/website` + `/api/admin/website`.
+- Admin editor `/admin/website` + `/api/admin/website` (the live content editor).
+- Public rendering: consolidated — the legacy `/b/{slug}` page now **redirects** to the canonical `Site` engine at `/s/{slug}`, which bridges `Website` content when no `Site` row exists (build-plan gap 8).
 - Service-button logic (derives which engine CTAs to render) — planned Phase W2.
 
 ## Order engine (`modules/order` — target; lives in `src/lib/db.ts` today)
@@ -50,6 +50,6 @@
 | Module | Reality today |
 | :--- | :--- |
 | core | `src/lib/plans.ts`, `plan-catalog.ts`, `settings.ts`, `activity.ts`, `auth.ts`, `auth-guard.ts`, `db.ts` (mixed) |
-| website | `src/modules/website/services.ts` + `(public)/b/[slug]/page.tsx` + api/admin/website + admin/website |
+| website | `src/modules/website/services.ts` + api/admin/website + admin/website (public rendering now via `/s/{slug}`; `/b/[slug]` redirects) |
 | order | `src/lib/db.ts` god-module spanning ALL order/booking/notification queries (refactor tracked; do not casually rewrite) |
 | track | `src/modules/track/services.ts` + `catalog.ts` (server engine) + api/admin/track/** + admin/track/** + (public)/track/** |

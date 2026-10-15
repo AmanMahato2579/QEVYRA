@@ -20,6 +20,21 @@ All routes are thin server components that invoke only `src/modules/sites/servic
 
 All `/s/[slug]` routes include `robots: { index: false, follow: false }` metadata and are excluded from `sitemap.ts`.
 
+## Canonical route + legacy bridge (build-plan gap 8)
+
+`/s/[slug]` is the **single canonical public storefront route**. To consolidate the
+two historical render paths without a data migration:
+
+- `getSiteBySlug` first looks for a published `Site` row. If none exists, it falls
+  back to a **bridge** that reads the legacy `Website` content (plus the linked
+  restaurant's menu items) and maps it into the same `SiteData` shape — so every
+  published business renders through the one template system.
+- The old `/b/[slug]` storefront page is now a thin **redirect** to `/s/[slug]`, so
+  already-printed QR/links keep working. Internal links, the admin QR text and
+  `sitemap.ts` point at `/s/`.
+- The legacy `Website` model/editor (`/admin/website`, `src/modules/website/services.ts`)
+  still owns the editable content; the bridge is read-only.
+
 ## Folder Structure
 
 ```
@@ -80,8 +95,8 @@ The `/s/[slug]` storefronts adapt seamlessly from mobile viewports (320px–767p
 
 ## Architectural Boundaries
 
-- The `sites` module strictly imports from `@/lib/*`, generic `@/components/ui/*`, and internal files within `src/modules/sites/`.
-- No direct coupling to `modules/order`, `modules/track`, or `modules/website`.
+- The `sites` module imports only `@/lib/*`, generic `@/components/ui/*`, and internal files within `src/modules/sites/`.
+- No direct coupling to `modules/order`, `modules/track`, or `modules/website` **as modules** (no module-to-module imports). The gap-8 bridge reads the shared platform tables (`Website`, `Restaurant`, `MenuItem`) through the shared `@/lib/prisma` client only.
 - Every `Site` is tied 1:1 to a tenant `Business` via required `businessId` foreign key. Child tables (`SiteHighlight`, `SiteItem`) carry both `siteId` and `businessId` composite indexes.
 - Database access is exclusively isolated to `src/modules/sites/services.ts`.
 

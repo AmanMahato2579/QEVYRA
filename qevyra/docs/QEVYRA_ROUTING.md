@@ -10,16 +10,16 @@ folders changed already (same URLs, new grouping).
 | `/` | QEVYRA.com company website | Built (Phase W1) — QEVYRA-branded, ₹ pricing packages |
 | `/login` | Auth sign-in | Exists |
 | `/inactive` | Account/subscription inactive notice | Exists |
-| `/b/{businessSlug}` | Business public website (+ printable self-QR) | Exists (service buttons + QR) |
+| `/b/{businessSlug}` | Business public website — **legacy URL, now redirects to `/s/{slug}`** | Redirect (gap 8) |
 | `/r/{restaurantSlug}` | Slug-level public menu (no table) | **Planned** (Phase O1) |
 | `/r/{restaurantSlug}/t/{tableToken}` | QR table menu (menu/cart/order/bill/book) | Exists |
 | `/track/{trackingCode}` | Public ticket tracking page | Exists (Phase T1) — `/track` lookup honors `?business=` |
 
-## Sites storefronts (`(sites)`)
+## Sites storefronts (`(sites)`) — canonical public storefront
 
 | URL | What | Status |
 | :--- | :--- | :--- |
-| `/s/{slug}` | Sites storefront landing page (GENERAL / TRACKING / MENU) | Built (Phase A) |
+| `/s/{slug}` | Storefront landing (GENERAL / TRACKING / MENU); bridges legacy `Website` content when no `Site` row | Built (Phase A) + gap 8 |
 | `/s/{slug}/items` | Sites GENERAL items list (+ ad banner) | Built (Phase A) |
 | `/s/{slug}/menu` | Sites MENU view-only dishes & booking notice (+ ad banner) | Built (Phase A) |
 | `/s/{slug}/track` | Sites demo tracking page (+ ad banner) | Built (Phase A) |

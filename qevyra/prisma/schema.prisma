@@ -85,6 +85,7 @@ model Business {
   website    Website?
   workflows  Workflow[]
   tickets    Ticket[]
+  notificationEvents NotificationEvent[]
   locations  BusinessLocation[]
   // Product activation: which QEVYRA products the business is entitled to use.
   // This is the source of truth for feature/limit access (see plans.ts).
@@ -92,6 +93,8 @@ model Business {
   site       Site?
   siteHighlights SiteHighlight[]
   siteItems  SiteItem[]
+  inventoryItems InventoryItem[]
+  inventoryMovements InventoryMovement[]
 
   @@index([slug])
   @@index([type])
@@ -182,6 +185,7 @@ model User {
   business   Business?   @relation(fields: [businessId], references: [id], onDelete: SetNull)
   restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   memberships BusinessMembership[]
+  inventoryMovements InventoryMovement[] @relation("InventoryMovementActor")
 
   @@index([email])
   @@index([businessId])
@@ -843,6 +847,7 @@ model Ticket {
   workflow     Workflow           @relation(fields: [workflowId], references: [id], onDelete: Cascade)
   currentStep  WorkflowStep?      @relation(fields: [currentStepId], references: [id], onDelete: SetNull)
   statusHistory TicketStatusHistory[]
+  items         TicketItem[]
 
   @@unique([businessId, ticketNumber])
   @@unique([workflowId, ticketNumber])
@@ -873,6 +878,27 @@ model TicketStatusHistory {
 
   @@index([ticketId])
   @@index([ticketId, createdAt])
+}
+
+// Optional structured line items attached to a Ticket (e.g. "2 × suit
+// stitching"). Free-form per ticket, never shared across tickets, and separate
+// from the free-text `Ticket.itemSummary`. Prices are optional and never
+// invented — a line with no `unitPrice` simply shows no amount.
+model TicketItem {
+  id          String   @id @default(cuid())
+  ticketId    String
+  name        String
+  description String?
+  quantity    Int      @default(1)
+  unitPrice   Decimal? @db.Decimal(10, 2)
+  currency    String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@index([ticketId, sortOrder])
 }
 
 enum TicketStatus {
@@ -974,4 +1000,102 @@ model SiteAd {
   updatedAt DateTime @updatedAt
 
   @@index([isActive, sortOrder])
+}
+
+// ─── Inventory (Suite A) ─────────────────────────────────────────────────────
+// Tenant-scoped stock control. An InventoryItem is a thing a business counts
+// (ingredient, retail good, spare part). Stock is NEVER edited directly: every
+// change is an InventoryMovement, which keeps a running balance (stockAfter) and
+// the actor/time, so the ledger doubles as an audit trail. `currentStock` is a
+// cached roll-up maintained by the movement service inside one transaction.
+enum InventoryMovementType {
+  RECEIVED // stock in (purchase / delivery)
+  USED // consumed or sold
+  WASTE // spoilage / loss
+  ADJUSTMENT // manual count correction (quantity may be + or -)
+}
+
+model InventoryItem {
+  id               String   @id @default(cuid())
+  businessId       String
+  name             String
+  sku              String?
+  unit             String   @default("unit")
+  currentStock     Decimal  @default(0) @db.Decimal(12, 3)
+  reorderThreshold Decimal  @default(0) @db.Decimal(12, 3)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  business  Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  movements InventoryMovement[]
+
+  @@unique([businessId, sku])
+  @@index([businessId])
+  @@index([businessId, isActive])
+}
+
+model InventoryMovement {
+  id         String                @id @default(cuid())
+  businessId String
+  itemId     String
+  type       InventoryMovementType
+  // Signed effect on stock: RECEIVED > 0, USED/WASTE < 0, ADJUSTMENT either.
+  quantity   Decimal               @db.Decimal(12, 3)
+  stockAfter Decimal               @db.Decimal(12, 3)
+  note       String?
+  actorId    String?
+  createdAt  DateTime              @default(now())
+
+  business Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  item     InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  actor    User?         @relation("InventoryMovementActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, createdAt])
+  @@index([itemId, createdAt])
+}
+
+// ─── Outbound notifications (platform core) ──────────────────────────────────
+// A durable, honest log of every external message the platform intends to send
+// (WhatsApp/SMS/email). The row is written BEFORE any network call, so a message
+// that cannot be delivered because no provider is connected is recorded as
+// NOT_CONFIGURED rather than silently lost. Provider adapters flip it to
+// SENT/FAILED. No business state is stored here — WhatsApp/SMS are channels.
+enum NotificationChannel {
+  WHATSAPP
+  SMS
+  EMAIL
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  NOT_CONFIGURED
+}
+
+model NotificationEvent {
+  id         String                     @id @default(cuid())
+  businessId String
+  channel    NotificationChannel
+  status     NotificationDeliveryStatus @default(PENDING)
+  recipient  String
+  subject    String?
+  body       String
+  // Adapter id that owns this channel (e.g. "whatsapp-cloud"); null if none exists.
+  provider   String?
+  // What triggered it, e.g. refType "ticket" + refId.
+  refType    String?
+  refId      String?
+  error      String?
+  attempts   Int                        @default(0)
+  sentAt     DateTime?
+  createdAt  DateTime                   @default(now())
+  updatedAt  DateTime                   @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, createdAt])
+  @@index([businessId, status])
+  @@index([refType, refId])
 }

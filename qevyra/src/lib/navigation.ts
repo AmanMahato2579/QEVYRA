@@ -61,6 +61,7 @@ export const BUSINESS_NAV: BusinessNavItem[] = [
   { key: "website", href: "/admin/website", label: "Website", kind: "both", module: "website", permission: "website.view" },
   { key: "tables", href: "/admin/tables", label: "Tables", kind: "menu", module: "order", permission: "resources.view" },
   { key: "bookings", href: "/admin/bookings", label: "Bookings", kind: "menu", module: "website", permission: "bookings.view", requires: "bookings" },
+  { key: "inventory", href: "/admin/inventory", label: "Inventory", kind: "menu", permission: "inventory.view" },
   { key: "notifications", href: "/admin/notifications", label: "Notifications", kind: "both", permission: "notifications.manage" },
   { key: "settings", href: "/admin/settings", label: "Settings", kind: "menu", permission: "business.settings.manage" },
 

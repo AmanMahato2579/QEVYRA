@@ -12,7 +12,7 @@ WEBSITE Website, WebsiteTheme
 ORDER   Restaurant, Category, MenuItem, MenuItemVariant, Table, TableSession,
         Order, OrderItem, OrderStatusHistory, OrderSequence, Notification,
         PushSubscription, BookableService, Booking, BookingStatusHistory
-TRACK   Workflow, WorkflowStep, Ticket, TicketStatusHistory, WorkflowSequence
+TRACK   Workflow, WorkflowStep, Ticket, TicketItem, TicketStatusHistory, WorkflowSequence
 SITES   Site, SiteHighlight, SiteItem, SiteAd
 ```
 
@@ -135,6 +135,65 @@ Closes the Track public-tracking enumeration hole (build-plan gap 6).
 - Public payload (`PublicTicket`) drops internal `notes`; only customer-safe fields
   (name, item summary, status, workflow, business contact) are exposed.
 - **Additive only** — one new column + unique index on `Ticket`; no other table altered.
+- Deploy: `npx prisma migrate deploy` (never `db push` on production).
+
+## Applied 2026-10-15 — inventory (`20261015135615_add_inventory`)
+
+Build-plan gap 4. Tenant-scoped stock control for any business.
+
+- `InventoryItem` — `businessId`, `name`, optional `sku`, `unit` (default `"unit"`),
+  `currentStock DECIMAL(12,3)` (cached roll-up), `reorderThreshold DECIMAL(12,3)`,
+  `isActive`. `@@unique([businessId, sku])` — blank SKUs are stored as `NULL` so
+  multiple items without a code never collide; indexes on `(businessId)` and
+  `(businessId, isActive)`.
+- `InventoryMovement` — append-only ledger: `type` (`InventoryMovementType`:
+  `RECEIVED`/`USED`/`WASTE`/`ADJUSTMENT`), signed `quantity` (the delta actually
+  applied), `stockAfter` (resulting balance), optional `note`, optional `actorId`
+  → `User` (`ON DELETE SET NULL`), `createdAt`. Indexes on `(businessId, createdAt)`
+  and `(itemId, createdAt)`.
+- Stock is never edited directly — `recordMovement` updates `currentStock` and
+  writes the movement in one transaction, so the ledger and the cached balance stay
+  in sync. Service `src/modules/inventory/services.ts`.
+- API `/api/admin/inventory/items` + `/[itemId]` + `/[itemId]/movements`; UI
+  `/admin/inventory`; nav gated on `inventory.view` / `inventory.manage`.
+- **Additive only** — two new tables + one enum; no existing table altered.
+- Deploy: `npx prisma migrate deploy` (never `db push` on production).
+
+## Applied 2026-10-15 — outbound notifications (`20261015140835_add_notification_events`)
+
+Build-plan gap 7. An honest, durable log of external messages (WhatsApp/SMS).
+
+- `NotificationEvent` — `businessId`, `channel` (`NotificationChannel`:
+  `WHATSAPP`/`SMS`/`EMAIL`), `status` (`NotificationDeliveryStatus`: `PENDING`/
+  `SENT`/`FAILED`/`NOT_CONFIGURED`), `recipient`, optional `subject`, `body`,
+  `provider` (adapter id), optional `refType`/`refId` (e.g. `ticket`),
+  `error`, `attempts`, `sentAt`, timestamps. Indexes on `(businessId, createdAt)`,
+  `(businessId, status)`, `(refType, refId)`.
+- Written **before** any network call; if no provider is connected the row is
+  `NOT_CONFIGURED` — there is no fake-success path. Provider adapters
+  (`src/modules/notifications/providers.ts`) flip it to `SENT`/`FAILED` only after
+  a real response.
+- Wired in Track (`createTicket`/`advanceTicket`/`cancelTicket`) and Bookings
+  (status route); shown read-only on `/admin/notifications`.
+- **Additive only** — two enums + one new table; no existing table altered.
+- Deploy: `npx prisma migrate deploy` (never `db push` on production).
+
+## Applied 2026-10-15 — ticket line items (`20261015145054_add_ticket_items`)
+
+Build-plan gap 10. Optional structured line items attached to a ticket.
+
+- `TicketItem` — `ticketId` (FK → `Ticket`, `onDelete: Cascade`), `name`, optional
+  `description`, `quantity INT default 1`, optional `unitPrice DECIMAL(10,2)`,
+  optional `currency`, `sortOrder INT default 0`, `createdAt`. Indexes on
+  `(ticketId)` and `(ticketId, sortOrder)`.
+- Distinct from the free-text `Ticket.itemSummary`. Prices are optional and never
+  invented: a line without `unitPrice` shows no amount, and a ticket total is only
+  rendered when at least one line is priced. `currency` is stored per line (defaults
+  to the linked restaurant's `Rs.` only when the caller supplies it).
+- Tenant-scoped through the parent ticket's `businessId`; item CRUD
+  (`addTicketItem`/`updateTicketItem`/`deleteTicketItem`) verifies ownership via the
+  ticket relation. New-ticket items are created in the same transaction as the ticket.
+- **Additive only** — one new table + back-relation on `Ticket`; no existing table altered.
 - Deploy: `npx prisma migrate deploy` (never `db push` on production).
 
 ## Planned schema changes (each needs a migration; decision with user at phase start)

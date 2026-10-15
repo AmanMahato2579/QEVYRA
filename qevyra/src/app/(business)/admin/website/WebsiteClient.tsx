@@ -90,7 +90,7 @@ export default function WebsiteClient({ slug, website, themes, canUse }: Props) 
         <p className="text-gray-600 mt-3 text-sm">
           Your current plan does not include the customisable business website.
           Upgrade to Silver or Star to publish a storefront at{" "}
-          <span className="text-purple-600">qevyra.com/b/{slug}</span>.
+          <span className="text-purple-600">qevyra.com/s/{slug}</span>.
         </p>
       </div>
     );
@@ -129,8 +129,8 @@ export default function WebsiteClient({ slug, website, themes, canUse }: Props) 
           </h1>
           <p className="text-gray-500 text-sm mt-1">
             Your public storefront lives at{" "}
-            <a href={`/b/${slug}`} target="_blank" className="text-purple-600 hover:underline">
-              /b/{slug} <ExternalLink className="w-3 h-3 inline" />
+            <a href={`/s/${slug}`} target="_blank" className="text-purple-600 hover:underline">
+              /s/{slug} <ExternalLink className="w-3 h-3 inline" />
             </a>
           </p>
         </div>
@@ -185,7 +185,7 @@ export default function WebsiteClient({ slug, website, themes, canUse }: Props) 
                 onChange={(e) => set("isPublished", e.target.checked)}
                 className="w-4 h-4 accent-purple-500"
               />
-              Published (visible at /b/{slug})
+              Published (visible at /s/{slug})
             </label>
           </section>
 
@@ -323,7 +323,7 @@ export default function WebsiteClient({ slug, website, themes, canUse }: Props) 
               )}
             </div>
             <a
-              href={`/b/${slug}`}
+              href={`/s/${slug}`}
               target="_blank"
               className="text-xs text-purple-600 hover:text-purple-200 inline-flex items-center gap-1"
             >

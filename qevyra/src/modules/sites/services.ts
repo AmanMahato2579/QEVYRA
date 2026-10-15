@@ -1,11 +1,20 @@
 import { prisma } from "@/lib/prisma";
 import {
+  getEffectiveAccess,
+  canUse,
+  canBook,
+  canUseProductFamily,
+} from "@/lib/plans";
+import {
   sanitizeSafeLink,
   sanitizePhoneDigits,
   validatePrimaryColor,
   socialLinksSchema,
   type SiteData,
   type SiteAdData,
+  type SiteType,
+  type SiteHighlightData,
+  type SiteItemData,
   type SocialLinkItem,
 } from "./types";
 
@@ -48,7 +57,7 @@ export async function getSiteBySlug(slug: string): Promise<SiteData | null> {
   });
 
   if (!site) {
-    return null;
+    return getSiteFromWebsiteBySlug(slug);
   }
 
   const [highlights, items] = await Promise.all([
@@ -170,4 +179,179 @@ export async function getActiveAds(limit = 2): Promise<SiteAdData[]> {
       };
     })
     .filter((ad): ad is SiteAdData => ad !== null);
+}
+
+function parseWebsiteSocialLinks(raw: string | null): SocialLinkItem[] {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    const out: SocialLinkItem[] = [];
+    for (const entry of parsed) {
+      if (!entry || typeof entry !== "object") continue;
+      const platform = String(
+        (entry as { kind?: unknown; platform?: unknown }).kind ??
+          (entry as { platform?: unknown }).platform ??
+          ""
+      ).trim();
+      const url = sanitizeSafeLink((entry as { url?: unknown }).url);
+      if (platform && url) {
+        out.push({ platform, url });
+      }
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+function formatPriceText(price: unknown, currency: string): string | null {
+  const amount = Number(price);
+  if (!Number.isFinite(amount)) return null;
+  const value = amount % 1 === 0 ? String(amount) : amount.toFixed(2);
+  return currency ? `${currency} ${value}` : value;
+}
+
+/**
+ * Transitional bridge (build-plan gap 8). Businesses whose storefront still
+ * lives in the legacy `Website` model are served through the canonical `Site`
+ * engine, so `/s/[slug]` is the single public site route (and `/b/[slug]`
+ * simply redirects here). Reads the shared platform tables through
+ * `@/lib/prisma` — no module-to-module imports.
+ */
+async function getSiteFromWebsiteBySlug(slug: string): Promise<SiteData | null> {
+  const website = await prisma.website.findFirst({
+    where: { business: { slug, isActive: true }, isPublished: true },
+    include: {
+      theme: true,
+      business: {
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          type: true,
+          description: true,
+          logoUrl: true,
+          coverUrl: true,
+          phone: true,
+          whatsapp: true,
+          address: true,
+          mapUrl: true,
+          openingHours: true,
+          brandColor: true,
+          plan: true,
+          featureOverrides: true,
+          limitOverrides: true,
+          starNumber: true,
+          restaurant: {
+            select: { id: true, currency: true, bookingsEnabled: true },
+          },
+          workflows: {
+            where: { isActive: true },
+            select: { id: true },
+            take: 1,
+          },
+        },
+      },
+    },
+  });
+
+  if (!website) return null;
+  const b = website.business;
+
+  const access = await getEffectiveAccess(b);
+  const menuProduct = canUseProductFamily(access, "menu");
+  const trackProduct = canUseProductFamily(access, "track");
+  const menuEnabled =
+    menuProduct && Boolean(b.restaurant) && canUse(access, "digital_menu");
+  const bookingsEnabled =
+    menuProduct &&
+    Boolean(b.restaurant?.bookingsEnabled) &&
+    canBook(access, Boolean(b.restaurant?.bookingsEnabled));
+  const trackEnabled =
+    trackProduct &&
+    b.workflows.length > 0 &&
+    canUse(access, "business_track");
+
+  const type: SiteType = menuEnabled || bookingsEnabled
+    ? "MENU"
+    : trackEnabled
+    ? "TRACKING"
+    : "GENERAL";
+
+  let items: SiteItemData[] = [];
+  if (menuEnabled && b.restaurant) {
+    const menuItems = await prisma.menuItem.findMany({
+      where: {
+        restaurantId: b.restaurant.id,
+        isAvailable: true,
+        category: { isActive: true },
+      },
+      orderBy: { createdAt: "asc" },
+      take: 50,
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        price: true,
+        imageUrl: true,
+        category: { select: { name: true } },
+      },
+    });
+    items = menuItems.map((item, index) => ({
+      id: item.id,
+      siteId: website.id,
+      businessId: b.id,
+      name: item.name,
+      description: item.description,
+      priceText: formatPriceText(item.price, b.restaurant?.currency ?? ""),
+      imageUrl: item.imageUrl,
+      category: item.category?.name ?? null,
+      sortOrder: index,
+      isActive: true,
+    }));
+  }
+
+  const highlights: SiteHighlightData[] = [];
+  if (website.servicesText || website.servicesTitle) {
+    highlights.push({
+      id: `${website.id}-services`,
+      siteId: website.id,
+      businessId: b.id,
+      title: website.servicesTitle ?? "What We Do",
+      description: website.servicesText,
+      imageUrl: null,
+      sortOrder: 0,
+    });
+  }
+
+  return {
+    id: website.id,
+    businessId: b.id,
+    slug: b.slug,
+    type,
+    name: b.name,
+    shortDescription: website.heroSubtitle ?? b.description ?? null,
+    aboutText: b.description ?? website.heroSubtitle ?? null,
+    storyText: website.aboutText ?? null,
+    logoUrl: b.logoUrl,
+    heroImageUrl: website.heroImageUrl ?? b.coverUrl ?? null,
+    primaryColor: website.theme?.primaryColor ?? b.brandColor ?? null,
+    phone: b.phone,
+    whatsapp: b.whatsapp,
+    addressText: website.addressText ?? b.address ?? null,
+    mapUrl: website.mapUrl ?? b.mapUrl ?? null,
+    openingHours: b.openingHours,
+    googleReviewUrl: website.googleReviewUrl,
+    socialLinks: parseWebsiteSocialLinks(website.socialLinks),
+    isPublished: website.isPublished,
+    enableItems: menuEnabled,
+    enableTrackOrder: trackEnabled,
+    enableAds: false,
+    enableBooking: bookingsEnabled,
+    createdAt: website.createdAt,
+    updatedAt: website.updatedAt,
+    highlights,
+    items,
+  };
 }

@@ -48,7 +48,8 @@ QEVYRA/
     │   │   ├── track/                 # track engine (services.ts + catalog.ts) — Track v1 live
     │   │   └── order/                 # order engine (bridges src/lib/db.ts god-module)
     │   ├── app/
-    │   │   ├── (public)/              # landing, /b/{slug}, /r/{slug}…, /track, /track/{code}
+    │   │   ├── (public)/              # landing, /b/{slug} (redirects to /s/{slug}), /r/{slug}…, /track, /track/{code}
+    │   │   ├── (sites)/s/[slug]/      # canonical public storefront (Site engine; bridges legacy Website content)
     │   │   ├── (business)/admin/      # admin shell: menu, orders, tables, bookings, website, track
     │   │   ├── (superadmin)/super-admin/
     │   │   └── api/                   # admin/, customer/, super-admin/, auth/

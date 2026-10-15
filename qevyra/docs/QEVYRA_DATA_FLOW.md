@@ -9,7 +9,7 @@ No duplicate stores. WhatsApp is a channel only.
 Business Admin / Super Admin
     └─ Writes Business + Plan + Website content (Postgres) ─┐
                                                             ▼
-Business website  /b/{slug}  ──reads──> Business + Website (+ enabled-service flags)
+Business storefront  /s/{slug}  ──reads──> Site engine (bridges legacy Business + Website content + menu)
 ```
 
 ## Order flows

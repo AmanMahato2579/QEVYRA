@@ -17,6 +17,7 @@ import {
   Circle,
   Truck,
   Languages,
+  Package,
 } from "lucide-react";
 import TicketLive from "./TicketLive";
 
@@ -86,6 +87,13 @@ export default async function TrackCodePage({ params, searchParams }: Props) {
 
   const isReady = ticket.status === "READY";
   const wa = whatsappLink(ticket.business.whatsapp || ticket.business.phone);
+  const pricedItems = ticket.items.filter((it) => it.unitPrice != null);
+  const itemsTotal = pricedItems.length
+    ? {
+        currency: pricedItems.find((it) => it.currency)?.currency ?? null,
+        total: pricedItems.reduce((sum, it) => sum + (it.unitPrice ?? 0) * it.quantity, 0),
+      }
+    : null;
   const scanUrl =
     (process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000") +
     `/track/${code}`;
@@ -95,7 +103,7 @@ export default async function TrackCodePage({ params, searchParams }: Props) {
       {/* Header */}
       <header className="border-b border-white/10 backdrop-blur-sm bg-white/5 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-6 py-4 flex items-center justify-between gap-3">
-          <Link href={`/b/${ticket.business.slug}`} className="flex items-center gap-2 min-w-0">
+          <Link href={`/s/${ticket.business.slug}`} className="flex items-center gap-2 min-w-0">
             {ticket.business.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={ticket.business.logoUrl} alt="" className="w-8 h-8 rounded-lg object-cover" />
@@ -135,6 +143,40 @@ export default async function TrackCodePage({ params, searchParams }: Props) {
             <p className="text-gray-300 mt-3">{ticket.itemSummary}</p>
           )}
         </div>
+
+        {/* Line items */}
+        {ticket.items.length > 0 && (
+          <section className="mt-6 rounded-3xl border border-white/10 bg-white/5 p-6">
+            <h2 className="text-sm uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-2">
+              <Package className="w-4 h-4" /> {t(lang, "Items", "वस्तुहरू")}
+            </h2>
+            <ul className="space-y-2">
+              {ticket.items.map((it) => (
+                <li key={it.id} className="flex items-start justify-between gap-4 text-sm">
+                  <span className="text-gray-200">
+                    <span className="text-white/40">{it.quantity}×</span> {it.name}
+                    {it.description && <span className="block text-xs text-white/40">{it.description}</span>}
+                  </span>
+                  {it.unitPrice != null && (
+                    <span className="text-white/70 shrink-0">
+                      {it.currency ? `${it.currency} ` : ""}
+                      {it.unitPrice}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+            {itemsTotal && (
+              <p className="mt-3 pt-3 border-t border-white/10 flex items-center justify-between text-sm font-semibold">
+                <span className="text-gray-400">{t(lang, "Total", "जम्मा")}</span>
+                <span>
+                  {itemsTotal.currency ? `${itemsTotal.currency} ` : ""}
+                  {Math.round(itemsTotal.total * 100) / 100}
+                </span>
+              </p>
+            )}
+          </section>
+        )}
 
         {/* Progress timeline */}
         <section className="mt-8">
@@ -230,7 +272,7 @@ export default async function TrackCodePage({ params, searchParams }: Props) {
                 <span className="text-sm font-medium">{t(lang, "Call", "कल गर्नुहोस्")} {ticket.business.phone}</span>
               </a>
             ) : null}
-            <a href={`/b/${ticket.business.slug}`} className="flex items-center gap-3 rounded-2xl border border-white/20 px-4 py-3 hover:bg-white/10">
+            <a href={`/s/${ticket.business.slug}`} className="flex items-center gap-3 rounded-2xl border border-white/20 px-4 py-3 hover:bg-white/10">
               <Globe className="w-5 h-5" />
               <span className="text-sm font-medium">{t(lang, "Visit website", "वेबसाइट हेर्नुहोस्")} · {ticket.business.name}</span>
             </a>
