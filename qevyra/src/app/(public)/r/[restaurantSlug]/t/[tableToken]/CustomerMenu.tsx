@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useParams } from "next/navigation";
 import { formatCurrency } from "@/lib/utils";
 import { t } from "@/lib/i18n";
@@ -248,9 +249,11 @@ export default function CustomerMenu({ restaurant, table, tableSession, categori
             </div>
           </div>
           {restaurant.logoUrl ? (
-            <img
+            <Image
               src={restaurant.logoUrl}
               alt={restaurant.name}
+              width={64}
+              height={64}
               className="w-16 h-16 rounded-2xl object-cover mb-3 shadow-lg"
             />
           ) : (
@@ -364,11 +367,12 @@ export default function CustomerMenu({ restaurant, table, tableSession, categori
                       className="bg-white rounded-2xl shadow-sm border border-gray-100 flex overflow-hidden menu-card-hover"
                     >
                       {item.imageUrl && (
-                        <img
+                        <Image
                           src={item.imageUrl}
                           alt={item.name}
+                          width={96}
+                          height={96}
                           className="w-24 h-24 object-cover shrink-0"
-                          loading="lazy"
                         />
                       )}
                       <div className="flex-1 p-4 flex flex-col justify-between min-w-0">

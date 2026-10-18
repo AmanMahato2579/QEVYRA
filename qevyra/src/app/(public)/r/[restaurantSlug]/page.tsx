@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { getRestaurantBySlug, getPublicMenu } from "@/lib/db";
 import type { Metadata } from "next";
 import { formatCurrency } from "@/lib/utils";
@@ -68,9 +69,11 @@ export default async function SlugMenuPage({ params, searchParams }: Props) {
       <div className="text-white px-4 pt-10 pb-8 relative menu-hero-gradient">
         <div className="max-w-2xl mx-auto text-center">
           {restaurant.logoUrl ? (
-            <img
+            <Image
               src={restaurant.logoUrl}
               alt={restaurant.name}
+              width={64}
+              height={64}
               className="w-16 h-16 rounded-2xl object-cover mb-3 shadow-lg mx-auto"
             />
           ) : (
@@ -146,11 +149,12 @@ export default async function SlugMenuPage({ params, searchParams }: Props) {
                     return (
                       <div key={item.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 flex overflow-hidden">
                         {(item as { imageUrl?: string | null }).imageUrl && (
-                          <img
+                          <Image
                             src={(item as { imageUrl: string }).imageUrl}
                             alt={item.name}
+                            width={96}
+                            height={96}
                             className="w-24 h-24 object-cover shrink-0"
-                            loading="lazy"
                           />
                         )}
                         <div className="flex-1 p-4 flex flex-col justify-between min-w-0">

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { formatCurrency } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -483,9 +484,11 @@ export default function MenuPageClient({ categories }: Props) {
 
                               {/* Image */}
                               {item.imageUrl ? (
-                                <img
+                                <Image
                                   src={item.imageUrl}
                                   alt={item.name}
+                                  width={48}
+                                  height={48}
                                   className="w-12 h-12 rounded-lg object-cover shrink-0"
                                 />
                               ) : (

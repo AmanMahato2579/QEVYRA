@@ -1,10 +1,10 @@
 "use client";
 
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import type { Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -64,7 +64,7 @@ export default function SettingsClient({ restaurant }: Props) {
   const router = useRouter();
   const { toast } = useToast();
   const lang = restaurant.language ?? "EN";
-  const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm<SettingsForm>({
+  const { register, handleSubmit, control, setValue, formState: { errors, isSubmitting } } = useForm<SettingsForm>({
     resolver: zodResolver(settingsSchema) as unknown as Resolver<SettingsForm>,
     defaultValues: {
       name: restaurant.name,
@@ -84,10 +84,10 @@ export default function SettingsClient({ restaurant }: Props) {
     },
   });
 
-  const isTaxEnabled = watch("isTaxEnabled");
-  const isServiceChargeEnabled = watch("isServiceChargeEnabled");
-  const bookingsEnabled = watch("bookingsEnabled");
-  const brandColor = watch("brandColor");
+  const isTaxEnabled = useWatch({ control, name: "isTaxEnabled" });
+  const isServiceChargeEnabled = useWatch({ control, name: "isServiceChargeEnabled" });
+  const bookingsEnabled = useWatch({ control, name: "bookingsEnabled" });
+  const brandColor = useWatch({ control, name: "brandColor" });
 
   const onSubmit = async (data: SettingsForm) => {
     const res = await fetch("/api/admin/settings", {
@@ -103,10 +103,15 @@ export default function SettingsClient({ restaurant }: Props) {
     }
   };
 
+  // Live brand-color preview: apply the selected value to the DOM so the
+  // page theme updates before the settings are saved.
+  useEffect(() => {
+    document.querySelector<HTMLElement>("[data-brand]")?.setAttribute("data-brand", brandColor);
+    document.documentElement.dataset.brand = brandColor;
+  }, [brandColor]);
+
   const pickBrandColor = (key: string) => {
     setValue("brandColor", key, { shouldDirty: true });
-    document.querySelector<HTMLElement>("[data-brand]")?.setAttribute("data-brand", key);
-    document.documentElement.dataset.brand = key;
   };
 
   const [pw, setPw] = useState({ current: "", next: "", confirm: "" });

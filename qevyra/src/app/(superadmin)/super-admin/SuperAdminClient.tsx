@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import type { Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -108,14 +108,14 @@ export default function SuperAdminClient({ restaurants }: Props) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [selectedProducts, setSelectedProducts] = useState<ProductTypeId[]>(["WEBSITE", "MENU", "ORDER"]);
 
-  const { register, handleSubmit, reset, watch, setValue, formState: { errors, isSubmitting } } =
+  const { register, handleSubmit, reset, control, setValue, formState: { errors, isSubmitting } } =
     useForm<RestaurantForm>({
       resolver: zodResolver(restaurantSchema) as unknown as Resolver<RestaurantForm>,
       defaultValues: { tableCount: 0, plan: "STAR", packageId: "website", publishWebsite: false, starNumber: null, businessType: "RESTAURANT", products: ["WEBSITE", "MENU", "ORDER"] },
     });
 
-  const name = watch("name");
-  const packageId = watch("packageId");
+  const name = useWatch({ control, name: "name" });
+  const packageId = useWatch({ control, name: "packageId" });
 
   const usedStarNumbers = new Set(
     restaurants.map((x) => x.starNumber).filter((n): n is number => n != null)

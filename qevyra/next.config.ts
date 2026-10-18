@@ -21,6 +21,14 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Image URLs are admin-entered (any http/https host), so remotePatterns
+  // allow all hosts. Next.js still blocks private/local IPs at the optimizer.
+  images: {
+    remotePatterns: [
+      { protocol: "https", hostname: "**" },
+      { protocol: "http", hostname: "**" },
+    ],
+  },
   async headers() {
     return [
       {

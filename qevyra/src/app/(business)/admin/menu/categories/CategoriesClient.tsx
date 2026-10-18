@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import type { Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -43,12 +43,26 @@ export default function CategoriesClient({ categories: initialCategories }: Prop
   const [editingId, setEditingId] = useState<string | null>(null);
   const formRef = useRef<HTMLDivElement | null>(null);
 
+  const {
+    register,
+    handleSubmit,
+    reset,
+    setValue,
+    control,
+    formState: { errors, isSubmitting },
+  } = useForm<CategoryForm>({
+    resolver: zodResolver(categorySchema) as unknown as Resolver<CategoryForm>,
+    defaultValues: { isActive: true },
+  });
+
   // Support deep-linking into the edit form (e.g. /admin/menu/categories?edit=<id>).
+  // Runs once on mount only; client-side so it cannot run during SSR.
   useEffect(() => {
     const editId = new URLSearchParams(window.location.search).get("edit");
     if (!editId) return;
     const cat = initialCategories.find((c) => c.id === editId);
     if (cat) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-only deep-link init; no render-time alternative without hydration mismatch
       setEditingId(cat.id);
       setShowForm(true);
       reset({
@@ -60,19 +74,7 @@ export default function CategoriesClient({ categories: initialCategories }: Prop
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    setValue,
-    watch,
-    formState: { errors, isSubmitting },
-  } = useForm<CategoryForm>({
-    resolver: zodResolver(categorySchema) as unknown as Resolver<CategoryForm>,
-    defaultValues: { isActive: true },
-  });
-
-  const isActive = watch("isActive");
+  const isActive = useWatch({ control, name: "isActive" });
 
   const startEdit = (cat: Category) => {
     setEditingId(cat.id);

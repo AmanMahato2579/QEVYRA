@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, useWatch } from "react-hook-form";
 import type { Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -90,7 +90,6 @@ export default function MenuItemForm({ categories, defaultCategoryId, item }: Pr
     control,
     handleSubmit,
     setValue,
-    watch,
     formState: { errors, isSubmitting },
   } = useForm<ItemForm>({
     resolver: zodResolver(itemSchema) as unknown as Resolver<ItemForm>,
@@ -116,12 +115,12 @@ export default function MenuItemForm({ categories, defaultCategoryId, item }: Pr
   });
   const { fields: variants, append: addVariant, remove: removeVariant } = useFieldArray({ control, name: "variants" });
 
-  const isAvailable = watch("isAvailable");
-  const hasSpicyOption = watch("hasSpicyOption");
-  const hasNoteOption = watch("hasNoteOption");
-  const requiresPreparation = watch("requiresPreparation");
-  const foodType = watch("foodType");
-  const watchedVariants = watch("variants");
+  const isAvailable = useWatch({ control, name: "isAvailable" });
+  const hasSpicyOption = useWatch({ control, name: "hasSpicyOption" });
+  const hasNoteOption = useWatch({ control, name: "hasNoteOption" });
+  const requiresPreparation = useWatch({ control, name: "requiresPreparation" });
+  const foodType = useWatch({ control, name: "foodType" });
+  const watchedVariants = useWatch({ control, name: "variants" });
 
   const onSubmit = async (data: ItemForm) => {
     const url = item ? `/api/admin/menu/items/${item.id}` : "/api/admin/menu/items";

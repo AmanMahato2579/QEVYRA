@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { formatCurrency } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
@@ -64,9 +65,11 @@ export default function MenuItemModal({ item, currency, lang = "EN", onClose, on
       <div className="relative w-full max-w-lg bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto overscroll-contain">
         {/* Image */}
         {item.imageUrl ? (
-          <img
+          <Image
             src={item.imageUrl}
             alt={item.name}
+            width={640}
+            height={192}
             className="w-full h-40 sm:h-48 object-cover"
           />
         ) : (

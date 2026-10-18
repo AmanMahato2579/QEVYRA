@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { formatCurrency } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 import { useCustomerLanguage, LanguageToggle } from "@/hooks/use-customer-lang";
@@ -70,7 +71,7 @@ export default function BillClient({ restaurant, table, orders, subtotal, taxAmo
         {/* Restaurant Header */}
         <div className="bg-white rounded-2xl p-5 shadow-sm border text-center">
           {restaurant.logoUrl && (
-            <img src={restaurant.logoUrl} alt="" className="w-14 h-14 rounded-2xl mx-auto mb-2 object-cover" />
+            <Image src={restaurant.logoUrl} alt="" width={56} height={56} className="w-14 h-14 rounded-2xl mx-auto mb-2 object-cover" />
           )}
           <h2 className="font-bold text-gray-900 text-lg">{restaurant.name}</h2>
           <p className="text-gray-400 text-sm">{t(lang, `Table ${table.tableNumber}`, `टेबल ${table.tableNumber}`)}</p>
