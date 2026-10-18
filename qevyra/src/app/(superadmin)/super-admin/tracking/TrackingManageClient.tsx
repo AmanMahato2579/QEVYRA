@@ -93,7 +93,6 @@ function BusinessCard({ b }: { b: ManageBusiness }) {
   }, [b]);
 
   const accent = b.brandColor ?? "purple";
-  const accentClass = `bg-${accent}-500`;
 
   return (
     <div className="bg-white/5 border border-white/10 rounded-xl overflow-hidden">

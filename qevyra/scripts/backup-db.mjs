@@ -13,7 +13,6 @@ import { join } from "node:path";
 
 const PG_USER = process.env.PG_USER ?? "postgres";
 const PG_DB = process.env.PG_DB ?? "qevyra";
-const PG_PASSWORD = process.env.PG_PASSWORD ?? "postgres";
 const PG_CONTAINER = process.env.PG_CONTAINER ?? "menu-saas-postgres";
 const BACKUP_DIR = process.env.BACKUP_DIR ?? "backups";
 const KEEP = Number(process.env.KEEP ?? 14);

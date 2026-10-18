@@ -50,7 +50,6 @@ export default async function MenuPage() {
 
       <MenuPageClient
         categories={JSON.parse(JSON.stringify(categories))}
-        restaurantId={restaurantId}
       />
     </div>
   );

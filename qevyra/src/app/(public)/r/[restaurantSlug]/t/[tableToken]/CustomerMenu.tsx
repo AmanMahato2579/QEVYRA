@@ -50,13 +50,6 @@ interface Category {
   menuItems: MenuItem[];
 }
 
-interface Offer {
-  id: string;
-  title: string;
-  description: string | null;
-  imageUrl: string | null;
-}
-
 interface TableSession {
   id: string;
 }
@@ -103,12 +96,6 @@ export default function CustomerMenu({ restaurant, table, tableSession, categori
   }, [tableSession, checkSession]);
 
   // (cart is initialized from localStorage in the state initializer)
-
-  // Save cart to localStorage
-  const updateCart = (newCart: CartItem[]) => {
-    setCart(newCart);
-    if (tableSession) saveCart(tableSession.id, newCart);
-  };
 
   const addToCart = (item: CartItem) => {
     setCart((prev) => {

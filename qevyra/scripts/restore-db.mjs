@@ -12,7 +12,6 @@ import { execSync } from "node:child_process";
 
 const PG_USER = process.env.PG_USER ?? "postgres";
 const PG_DB = process.env.PG_DB ?? "qevyra";
-const PG_PASSWORD = process.env.PG_PASSWORD ?? "postgres";
 const PG_CONTAINER = process.env.PG_CONTAINER ?? "menu-saas-postgres";
 
 const fileArg = process.argv.find((a) => a.startsWith("--file="));

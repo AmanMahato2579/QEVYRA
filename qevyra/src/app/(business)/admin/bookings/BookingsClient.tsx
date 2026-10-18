@@ -109,7 +109,6 @@ export default function BookingsClient({ initialDate, initialBookings, language 
   };
 
   const totals = React.useMemo(() => {
-    const now = new Date().getTime();
     const upcoming = bookings.filter(
       (b) => (b.status === "PENDING" || b.status === "ACCEPTED") && b.createdAt
     ).length;

@@ -50,7 +50,7 @@ export async function PATCH(
 
 // Item deletion is intentionally not exposed: removing food goes through the
 // status lifecycle (CANCEL) so an audit trail is preserved in the bill.
-export async function DELETE(_req: Request) {
+export async function DELETE() {
   const guard = await apiGuard({ permission: "orders.manage" });
   if (guard.error) return guard.error;
   // Safer to refuse hard-delete of order items — use CANCEL instead.
