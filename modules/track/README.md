@@ -1,16 +1,14 @@
-# QEVYRA Track — PLACEHOLDER
+# QEVYRA Track
 
-*No code yet. This directory intentionally contains only documentation.*
+Service-business ticket/workflow tracking product. **Live in `qevyra/`** (this folder is a product placeholder only).
 
-Planned product: **place/venue digital usage** — timer-based sessions for rooms, pools, table games, adventure/multi-venue sites, with push notifications and payment-ready billing.
+## Scope (live)
 
-## Scope (planned, from the roadmap)
+- Configurable ordered workflows (`Workflow`, `WorkflowStep`) per business.
+- Tickets with status history, line items, and a high-entropy `publicToken`.
+- Secure customer tracking at `/track/[code]` (token-resolved; code+phone fallback, rate-limited).
+- Admin at `/track-admin`; APIs under `/api/admin/track/`.
 
-- Usage units / places per business (business-scoped, `businessId`).
-- Timer sessions with start/stop/break, price snapshots, and audit events.
-- Real-time updates via the platform realtime channel (SSE first).
-- Reuses platform core: tenancy, plans (track.* feature keys), notifications/web-push, activity log.
+## This folder
 
-## Not started
-
-No data model, no code, no migrations. Templates will follow the platform rules when Stage 3 begins. See `docs/QEVYRA_ROADMAP.md` Stage 3.
+No code here. Development happens in `qevyra/src/modules/track/`. See root `AGENTS.md` and `qevyra/README.md`.

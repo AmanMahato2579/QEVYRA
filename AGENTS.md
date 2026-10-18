@@ -1,6 +1,6 @@
-# AGENTS.md — QEVYRA repo guide for AI agents
+﻿# AGENTS.md — QEVYRA repo guide for AI agents
 
-> Read this first. Then read `docs/ARCHITECTURE_RULES.md` (binding) and, before touching anything, `docs/CURRENT_SYSTEM_AUDIT.md`.
+> Read this first. Then read `docs/ARCHITECTURE_RULES.md` (binding).
 
 ## What this repo is
 
@@ -19,11 +19,11 @@ QEVYRA = multi-business digital platform. One repo, one app, one Postgres DB. Pr
 
 ## Where things live
 
-- `docs/` — architecture truth: audit (current), architecture (target), repo structure, migration map, rules, roadmap, DB evolution.
+- `docs/` — architecture truth: `ARCHITECTURE_RULES.md` (binding rules) is the only standing doc here; keep the set minimal.
 - `qevyra/` — **the app**. Unified Next.js 16 / Prisma / Postgres platform (own package.json, own prisma, own vercel.json). All new work goes here.
-- `qevyra/docs/` — app-level truth: build plan (source of truth for current work), architecture, database, routing, modules, ops, track, website, sites.
+- `qevyra/docs/` — operations runbook (`QEVYRA_OPS.md`): local dev, deploy, backups, smoke checks.
 - `modules/order/menu-saas/` — the legacy deployed product. Keep it working; do not add features to it.
-- `modules/track/`, `modules/website/` — placeholder product folders (README only).
+- `modules/track/`, `modules/website/` — product-folder READMEs only; the real code lives in `qevyra/src/modules/`.
 
 ## Getting around the app
 
