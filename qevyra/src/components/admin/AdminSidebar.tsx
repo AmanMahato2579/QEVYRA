@@ -19,6 +19,7 @@ import {
   HandPlatter,
   CalendarCheck,
   Globe,
+  Boxes,
 } from "lucide-react";
 import InstallPWA from "./InstallPWA";
 
@@ -48,6 +49,7 @@ const MENU_NAV: Record<string, { icon: NavIcon; label: [string, string] }> = {
   website: { icon: Globe, label: ["Website", "वेबसाइट"] },
   tables: { icon: QrCode, label: ["Tables", "टेबलहरू"] },
   bookings: { icon: CalendarCheck, label: ["Bookings", "बुकिङहरू"] },
+  inventory: { icon: Boxes, label: ["Inventory", "इन्भेन्टरी"] },
   notifications: { icon: Bell, label: ["Notifications", "सूचनाहरू"] },
   settings: { icon: Settings, label: ["Settings", "सेटिङहरू"] },
 };
