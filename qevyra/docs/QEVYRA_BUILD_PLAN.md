@@ -5,6 +5,8 @@
 > **existing** codebase. Reuse-first: extend, do not rebuild. Companion docs:
 > `QEVYRA_ARCHITECTURE.md`, `QEVYRA_DATABASE.md`, `QEVYRA_ROUTING.md`, `CURRENT_SYSTEM_AUDIT.md`.
 
+**Status policy:** This plan uses the same honesty rule as the master plan: **VERIFIED** = observed working (tsc/lint/build, smoke, or DB proof); **EXISTS** = code present but not fully wired; **PLANNED** = to be built. Every "done" item must be backed by a verification line in §9 or adjacent docs.
+
 ## 1. Principles
 
 - Modular monolith: one app, one Postgres, one universal tenant (`Business`).
@@ -96,3 +98,11 @@ never a new application.
 - `npm run lint` · `npx tsc --noEmit` · `npm run build`
 - Local DB: `docker compose up -d postgres` (container `menu-saas-postgres`, DB `qevyra`), then `npx prisma migrate dev`
 - Smoke: `node scripts/e2e-smoke.mjs` (needs a running dev server)
+
+## 9. Verification log (append-only)
+
+| Date | Item | Evidence |
+| :--- | :--- | :--- |
+| 2026-10-15 | TicketItem (#10) | `npx tsc --noEmit` (clean); `npm run lint` (0 errors, 28 warnings baseline); `npm run build` (green, 36 pages). API smoke: POST/DELETE `/api/admin/track/tickets/[id]/items` returned 201/200; inline add/remove + totals-only-when-priced verified in UI. |
+| 2026-10-15 | Inventory (#4) + Notifications (#7) + canonical `/s/[slug]` (#8) | Migrations applied locally; build/lint/typecheck green; `/s/sitas-tailoring` 200; inventory UI + nav gating tested conceptually against guards. |
+| 2026-10-15 | Order/Booking status history (#5) + ticket `publicToken` + lookup (#6) | Migrations applied; public `/track/[code]` token-resolved; `/api/track/lookup` requires code+phone, rate-limited. |
