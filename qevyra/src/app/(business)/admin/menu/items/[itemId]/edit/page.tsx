@@ -13,15 +13,31 @@ export default async function EditMenuItemPage({ params }: Props) {
   const { itemId } = await params;
   const user = await requireRestaurantAdmin();
 
-  const [item, categories] = await Promise.all([
+  const restaurant = await prisma.restaurant.findUnique({
+    where: { id: user.restaurantId! },
+    select: { businessId: true },
+  });
+  const businessId = user.businessId ?? restaurant?.businessId ?? null;
+
+  const [item, categories, inventoryItems] = await Promise.all([
     prisma.menuItem.findFirst({
       where: { id: itemId, restaurantId: user.restaurantId! },
-      include: { variants: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] } },
+      include: {
+        variants: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
+        recipe: true,
+      },
     }),
     prisma.category.findMany({
       where: { restaurantId: user.restaurantId!, isActive: true },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
     }),
+    businessId
+      ? prisma.inventoryItem.findMany({
+          where: { businessId, isActive: true },
+          select: { id: true, name: true, unit: true, currentStock: true },
+          orderBy: { name: "asc" },
+        })
+      : Promise.resolve([]),
   ]);
 
   if (!item) notFound();
@@ -36,6 +52,7 @@ export default async function EditMenuItemPage({ params }: Props) {
         categories={JSON.parse(JSON.stringify(categories))}
         defaultCategoryId={item.categoryId}
         item={JSON.parse(JSON.stringify(item))}
+        inventoryItems={JSON.parse(JSON.stringify(inventoryItems))}
       />
     </div>
   );

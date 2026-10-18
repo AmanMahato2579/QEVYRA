@@ -1,5 +1,7 @@
 import { setOrderItemStatus, serveOrderItem, setOrderItemQuantity } from "@/lib/db";
 import { apiGuard } from "@/lib/api-guard";
+import { prisma } from "@/lib/prisma";
+import { restoreStockForOrder, adjustStockForQuantityChange } from "@/lib/order-inventory";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -32,11 +34,71 @@ export async function PATCH(
   try {
     let result;
     if (parsed.data.action === "status") {
+      // Read the pre-change item state so an idempotent re-cancel (the service
+      // early-returns on same-status) cannot restore stock twice.
+      const before =
+        parsed.data.status === "CANCELLED"
+          ? await prisma.orderItem.findUnique({
+              where: { id: itemId },
+              select: {
+                status: true,
+                quantity: true,
+                menuItemId: true,
+                order: { select: { id: true, status: true, orderNumber: true } },
+              },
+            })
+          : null;
       result = await setOrderItemStatus(itemId, restaurantId, parsed.data.status, parsed.data.reason);
+      if (!result) return NextResponse.json({ error: "Item not found" }, { status: 404 });
+      // Cancelling an item on an accepted order returns its ingredients to
+      // stock (best-effort). PENDING orders never consumed; REJECTED orders
+      // already had their whole stock restored at rejection time.
+      if (
+        before &&
+        before.status !== "CANCELLED" &&
+        result.status === "CANCELLED" &&
+        before.order.status !== "PENDING" &&
+        before.order.status !== "REJECTED"
+      ) {
+        await restoreStockForOrder(
+          restaurantId,
+          before.order.orderNumber,
+          [{ menuItemId: before.menuItemId, quantity: before.quantity }],
+          guard.user.id,
+          "item cancelled"
+        );
+      }
     } else if (parsed.data.action === "serve") {
       result = await serveOrderItem(itemId, restaurantId);
     } else {
+      // Quantity change: read the pre-change state first so the stock delta
+      // (new − old) can be booked after the update lands.
+      const before = await prisma.orderItem.findUnique({
+        where: { id: itemId },
+        select: {
+          quantity: true,
+          menuItemId: true,
+          order: { select: { status: true, orderNumber: true } },
+        },
+      });
       result = await setOrderItemQuantity(itemId, restaurantId, parsed.data.quantity);
+      if (!result) return NextResponse.json({ error: "Item not found" }, { status: 404 });
+      if (
+        before &&
+        result.quantity !== before.quantity &&
+        before.order.status !== "PENDING" &&
+        before.order.status !== "REJECTED"
+      ) {
+        await adjustStockForQuantityChange(
+          restaurantId,
+          before.order.orderNumber,
+          before.menuItemId,
+          before.quantity,
+          result.quantity,
+          before.order.status,
+          guard.user.id
+        );
+      }
     }
     return NextResponse.json(result);
   } catch (err) {

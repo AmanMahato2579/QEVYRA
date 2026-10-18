@@ -22,6 +22,10 @@ const itemSchema = z.object({
     foodType: z.enum(["VEG", "NON_VEG", "NONE"]).optional().nullable(),
     isAvailable: z.boolean().optional(),
   })).max(20).default([]),
+  recipe: z.array(z.object({
+    inventoryItemId: z.string(),
+    quantity: z.coerce.number().positive(),
+  })).max(20).default([]),
 }).superRefine((data, ctx) => {
   if ((!data.variants || data.variants.length === 0) && data.price <= 0) {
     ctx.addIssue({
@@ -37,6 +41,41 @@ function deriveFoodType(variants: { foodType?: string | null }[]): "VEG" | "NON_
   if (variants.some((v) => v.foodType === "NON_VEG")) return "NON_VEG";
   if (variants.some((v) => v.foodType === "VEG")) return "VEG";
   return "NONE";
+}
+
+/**
+ * Resolve the tenant's businessId (needed for inventory recipe validation).
+ * Restaurants without a linked business have no inventory → no recipes.
+ */
+async function businessIdForRestaurant(restaurantId: string): Promise<string | null> {
+  const restaurant = await prisma.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { businessId: true },
+  });
+  return restaurant?.businessId ?? null;
+}
+
+/**
+ * Validate recipe lines against the tenant's own inventory items. Returns an
+ * error message, or null when valid. Duplicate inventory items are collapsed
+ * (the unique constraint would reject them anyway).
+ */
+async function validateRecipe(
+  businessId: string | null,
+  recipe: { inventoryItemId: string }[]
+): Promise<string | null> {
+  if (recipe.length === 0) return null;
+  if (!businessId) {
+    return "Inventory is not configured for this business — no recipe can be linked.";
+  }
+  const ids = [...new Set(recipe.map((r) => r.inventoryItemId))];
+  const owned = await prisma.inventoryItem.count({
+    where: { id: { in: ids }, businessId, isActive: true },
+  });
+  if (owned !== ids.length) {
+    return "One or more inventory items are invalid for this business.";
+  }
+  return null;
 }
 
 export async function POST(req: Request) {
@@ -55,15 +94,19 @@ export async function POST(req: Request) {
   });
   if (!category) return NextResponse.json({ error: "Category not found" }, { status: 404 });
 
+  const recipeError = await validateRecipe(await businessIdForRestaurant(restaurantId), parsed.data.recipe);
+  if (recipeError) return NextResponse.json({ error: recipeError }, { status: 400 });
+
   // If variants exist and base price is 0, auto-fill base price with highest variant price
   let finalPrice = parsed.data.price;
   if (parsed.data.variants.length > 0 && finalPrice <= 0) {
     finalPrice = Math.max(...parsed.data.variants.map(v => v.price));
   }
 
+  const { recipe, ...itemData } = parsed.data;
   const item = await prisma.menuItem.create({
     data: {
-      ...parsed.data,
+      ...itemData,
       price: finalPrice,
       restaurantId,
       categoryId: category.id,
@@ -71,6 +114,12 @@ export async function POST(req: Request) {
       foodType: deriveFoodType(parsed.data.variants),
       imageUrl: parsed.data.imageUrl || null,
       variants: { create: parsed.data.variants },
+      recipe: {
+        create: recipe.map((r) => ({
+          inventoryItemId: r.inventoryItemId,
+          quantity: r.quantity,
+        })),
+      },
     },
   });
   return NextResponse.json(item, { status: 201 });

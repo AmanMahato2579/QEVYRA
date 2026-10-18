@@ -1,10 +1,11 @@
 import { requireRestaurantAdmin } from "@/lib/auth-guard";
 import { getDashboardStats, getRestaurantById } from "@/lib/db";
+import { getLowStockItems } from "@/modules/inventory/services";
 import { formatCurrency } from "@/lib/utils";
 import { t } from "@/lib/i18n";
 import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Wallet, CalendarDays, Armchair, LayoutGrid, Clock, ChefHat } from "lucide-react";
+import { Wallet, CalendarDays, Armchair, LayoutGrid, Clock, ChefHat, TriangleAlert, PackageCheck } from "lucide-react";
 
 export const metadata = { title: "Dashboard – QEVYRA Admin" };
 
@@ -17,6 +18,8 @@ export default async function AdminDashboard() {
 
   const plan = restaurant?.business?.plan ?? "STAR";
   const lang = restaurant?.language ?? "EN";
+  const businessId = user.businessId ?? restaurant?.business?.id ?? null;
+  const lowStockItems = businessId ? await getLowStockItems(businessId) : [];
   const planColor =
     plan === "SILVER" ? "bg-gray-50 text-gray-600 border-gray-300"
     : plan === "BRONZE" ? "bg-orange-50 text-orange-700 border-orange-200"
@@ -61,7 +64,7 @@ export default async function AdminDashboard() {
       </div>
 
       {/* Quick actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         <Card className="border-orange-100 bg-gradient-to-br from-orange-50 to-amber-50">
           <CardHeader className="pb-2">
             <CardTitle className="text-base text-orange-700 flex items-center gap-2">
@@ -91,6 +94,54 @@ export default async function AdminDashboard() {
             </Link>
           </CardContent>
         </Card>
+
+        {businessId && (
+          lowStockItems.length > 0 ? (
+            <Card className="border-red-200 bg-gradient-to-br from-red-50 to-amber-50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base text-red-700 flex items-center gap-2">
+                  <TriangleAlert className="w-4 h-4" /> {t(lang, "Low Stock", "कम स्टक")}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-4xl font-extrabold text-red-600">{lowStockItems.length}</p>
+                <p className="text-sm text-red-500 mt-1">
+                  {t(lang, "items at or below reorder level", "पुनः अर्डर गर्नुपर्ने तहमा वा त्योभन्दा कम भएका वस्तुहरू")}
+                </p>
+                <ul className="mt-2 space-y-0.5">
+                  {lowStockItems.slice(0, 3).map((item) => (
+                    <li key={item.id} className="text-xs text-red-600/80 truncate">
+                      • {item.name} — {Number(item.currentStock)} {item.unit}
+                    </li>
+                  ))}
+                  {lowStockItems.length > 3 && (
+                    <li className="text-xs text-red-400">
+                      +{lowStockItems.length - 3} …
+                    </li>
+                  )}
+                </ul>
+                <Link href="/admin/inventory" className="inline-block mt-3 text-sm font-medium text-red-600 hover:underline">
+                  {t(lang, "Open Inventory →", "इन्भेन्टरी खोल्नुहोस् →")}
+                </Link>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border-emerald-100 bg-gradient-to-br from-emerald-50 to-green-50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base text-emerald-700 flex items-center gap-2">
+                  <PackageCheck className="w-4 h-4" /> {t(lang, "Stock Levels", "स्टक तह")}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-4xl font-extrabold text-emerald-600">✓</p>
+                <p className="text-sm text-emerald-500 mt-1">{t(lang, "all inventory items are above reorder level", "सबै इन्भेन्टरी वस्तुहरू पुनः अर्डर तह माथि छन्")}</p>
+                <Link href="/admin/inventory" className="inline-block mt-3 text-sm font-medium text-emerald-600 hover:underline">
+                  {t(lang, "Open Inventory →", "इन्भेन्टरी खोल्नुहोस् →")}
+                </Link>
+              </CardContent>
+            </Card>
+          )
+        )}
       </div>
     </div>
   );

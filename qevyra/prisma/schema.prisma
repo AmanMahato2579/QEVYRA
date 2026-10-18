@@ -512,9 +512,29 @@ model MenuItem {
   restaurant          Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   variants            MenuItemVariant[]
   orderItems          OrderItem[]
+  recipe              MenuItemRecipe[]
 
   @@index([restaurantId])
   @@index([categoryId])
+}
+
+// Junction: which inventory items one unit of this menu item consumes, and how
+// much. When an order is accepted the platform records USED movements for the
+// aggregated recipe lines; cancellations/rejections write compensating
+// ADJUSTMENT movements. Stock bookkeeping is best-effort and never blocks the
+// order flow.
+model MenuItemRecipe {
+  id              String        @id @default(cuid())
+  menuItemId      String
+  inventoryItemId String
+  quantity        Decimal       @default(1) @db.Decimal(12, 3)
+  createdAt       DateTime      @default(now())
+
+  menuItem      MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+
+  @@unique([menuItemId, inventoryItemId])
+  @@index([inventoryItemId])
 }
 
 model MenuItemVariant {
@@ -1029,6 +1049,7 @@ model InventoryItem {
 
   business  Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
   movements InventoryMovement[]
+  recipes   MenuItemRecipe[]
 
   @@unique([businessId, sku])
   @@index([businessId])

@@ -24,6 +24,10 @@ const patchSchema = z.object({
     foodType: z.enum(["VEG", "NON_VEG", "NONE"]).optional().nullable(),
     isAvailable: z.boolean().optional(),
   })).max(20).optional(),
+  recipe: z.array(z.object({
+    inventoryItemId: z.string(),
+    quantity: z.coerce.number().positive(),
+  })).max(20).optional(),
 });
 
 /** The item-level food type is derived from its variants (no separate input). */
@@ -31,6 +35,41 @@ function deriveFoodType(variants: { foodType?: string | null }[]): "VEG" | "NON_
   if (variants.some((v) => v.foodType === "NON_VEG")) return "NON_VEG";
   if (variants.some((v) => v.foodType === "VEG")) return "VEG";
   return "NONE";
+}
+
+/**
+ * Resolve the tenant's businessId (needed for inventory recipe validation).
+ * Restaurants without a linked business have no inventory → no recipes.
+ */
+async function businessIdForRestaurant(restaurantId: string): Promise<string | null> {
+  const restaurant = await prisma.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { businessId: true },
+  });
+  return restaurant?.businessId ?? null;
+}
+
+/**
+ * Validate recipe lines against the tenant's own inventory items. Returns an
+ * error message, or null when valid. Duplicate inventory items are collapsed
+ * (the unique constraint would reject them anyway).
+ */
+async function validateRecipe(
+  businessId: string | null,
+  recipe: { inventoryItemId: string }[]
+): Promise<string | null> {
+  if (recipe.length === 0) return null;
+  if (!businessId) {
+    return "Inventory is not configured for this business — no recipe can be linked.";
+  }
+  const ids = [...new Set(recipe.map((r) => r.inventoryItemId))];
+  const owned = await prisma.inventoryItem.count({
+    where: { id: { in: ids }, businessId, isActive: true },
+  });
+  if (owned !== ids.length) {
+    return "One or more inventory items are invalid for this business.";
+  }
+  return null;
 }
 
 export async function PATCH(
@@ -50,12 +89,17 @@ export async function PATCH(
   const parsed = patchSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const { variants, ...rest } = parsed.data;
+  const { variants, recipe, ...rest } = parsed.data;
   const updateData = { ...rest } as Prisma.MenuItemUpdateInput;
   if (parsed.data.imageUrl === "") updateData.imageUrl = null;
 
   if (variants && variants.length > 0 && (!updateData.price || Number(updateData.price) <= 0)) {
     updateData.price = Math.max(...variants.map(v => v.price));
+  }
+
+  if (recipe) {
+    const recipeError = await validateRecipe(await businessIdForRestaurant(restaurantId), recipe);
+    if (recipeError) return NextResponse.json({ error: recipeError }, { status: 400 });
   }
 
   // Sync variants in place: keep the same row ids whenever possible so that
@@ -115,6 +159,23 @@ export async function PATCH(
           );
         }
       }
+    }
+  }
+
+  // Recipe rows have no external dependents (nothing links to them), so a
+  // full delete+recreate is simpler and safer than variant-style diffing.
+  if (recipe) {
+    ops.push(prisma.menuItemRecipe.deleteMany({ where: { menuItemId: itemId } }));
+    if (recipe.length > 0) {
+      ops.push(
+        prisma.menuItemRecipe.createMany({
+          data: recipe.map((r) => ({
+            menuItemId: itemId,
+            inventoryItemId: r.inventoryItemId,
+            quantity: r.quantity,
+          })),
+        })
+      );
     }
   }
 

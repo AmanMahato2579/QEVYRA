@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useForm, useFieldArray, useWatch } from "react-hook-form";
 import type { Resolver } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -36,6 +37,10 @@ const itemSchema = z.object({
     price: z.coerce.number().positive("Variant price must be positive"),
     foodType: z.enum(FOOD_TYPES).default("NONE"),
   })).default([]),
+  recipe: z.array(z.object({
+    inventoryItemId: z.string().min(1, "Select an inventory item"),
+    quantity: z.coerce.number().positive("Quantity must be positive"),
+  })).default([]),
 }).superRefine((data, ctx) => {
   if ((!data.variants || data.variants.length === 0) && (!data.price || data.price <= 0)) {
     ctx.addIssue({
@@ -68,6 +73,14 @@ interface MenuItem {
   requiresPreparation?: boolean;
   foodType: string | null;
   variants?: { id: string; name: string; price: string; foodType?: string | null }[];
+  recipe?: { inventoryItemId: string; quantity: string }[];
+}
+
+interface InventoryItem {
+  id: string;
+  name: string;
+  unit: string;
+  currentStock: string;
 }
 
 /** Normalize legacy/unknown food-type values to the supported set. */
@@ -79,9 +92,10 @@ interface Props {
   categories: Category[];
   defaultCategoryId?: string;
   item?: MenuItem;
+  inventoryItems?: InventoryItem[];
 }
 
-export default function MenuItemForm({ categories, defaultCategoryId, item }: Props) {
+export default function MenuItemForm({ categories, defaultCategoryId, item, inventoryItems = [] }: Props) {
   const router = useRouter();
   const { toast } = useToast();
 
@@ -111,9 +125,14 @@ export default function MenuItemForm({ categories, defaultCategoryId, item }: Pr
         price: Number(variant.price),
         foodType: normalizeFoodType(variant.foodType),
       })) ?? [],
+      recipe: item?.recipe?.map((line) => ({
+        inventoryItemId: line.inventoryItemId,
+        quantity: Number(line.quantity),
+      })) ?? [],
     },
   });
   const { fields: variants, append: addVariant, remove: removeVariant } = useFieldArray({ control, name: "variants" });
+  const { fields: recipeLines, append: addRecipeLine, remove: removeRecipeLine } = useFieldArray({ control, name: "recipe" });
 
   const isAvailable = useWatch({ control, name: "isAvailable" });
   const hasSpicyOption = useWatch({ control, name: "hasSpicyOption" });
@@ -284,6 +303,83 @@ export default function MenuItemForm({ categories, defaultCategoryId, item }: Pr
             <Input id="ingredients" placeholder="e.g. Chicken, Flour, Spices" {...register("ingredients")} />
             <p className="text-xs text-gray-400">Comma-separated ingredients</p>
           </div>
+
+          {/* Recipe (menu item → inventory linkage) */}
+          {inventoryItems.length > 0 ? (
+            <div className="space-y-3 rounded-xl border bg-gray-50 p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm font-semibold">Stock Recipe (Optional)</Label>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Link inventory items this dish consumes. Stock is deducted automatically when
+                    orders are accepted and restored when they are cancelled or rejected.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="bg-white hover:bg-orange-50 border-orange-200 text-orange-600 font-semibold shrink-0"
+                  onClick={() => addRecipeLine({ inventoryItemId: "", quantity: 1 })}
+                >
+                  + Add Ingredient
+                </Button>
+              </div>
+
+              {recipeLines.length > 0 && (
+                <div className="space-y-2 pt-1">
+                  {recipeLines.map((line, index) => {
+                    const selected = inventoryItems.find((i) => i.id === line.inventoryItemId);
+                    return (
+                      <div key={line.id} className="flex flex-wrap sm:flex-nowrap items-center gap-2 bg-white p-2.5 rounded-lg border shadow-sm">
+                        <select
+                          {...register(`recipe.${index}.inventoryItemId`)}
+                          className="flex-1 min-w-[160px] h-10 rounded-md border border-input bg-background px-3 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-ring"
+                        >
+                          <option value="">Select inventory item…</option>
+                          {inventoryItems.map((inv) => (
+                            <option key={inv.id} value={inv.id}>
+                              {inv.name} ({inv.unit})
+                            </option>
+                          ))}
+                        </select>
+                        <Input
+                          type="number"
+                          min="0.001"
+                          step="any"
+                          placeholder="Qty"
+                          {...register(`recipe.${index}.quantity`)}
+                          className="w-24"
+                        />
+                        <span className="text-[11px] text-gray-400 shrink-0">
+                          {selected ? `${selected.unit}/order` : "\u00A0"}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50 px-2"
+                          onClick={() => removeRecipeLine(index)}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {errors.recipe && <p className="text-red-500 text-xs mt-1">Check ingredient selections and quantities.</p>}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed bg-gray-50 p-4">
+              <p className="text-xs text-gray-500">
+                Add inventory items to link this dish to your stock.{" "}
+                <Link href="/admin/inventory" className="text-orange-600 font-medium hover:underline">
+                  Set up inventory →
+                </Link>
+              </p>
+            </div>
+          )}
 
           {/* Discount */}
           <div className="space-y-1.5">

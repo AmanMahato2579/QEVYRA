@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { apiGuard } from "@/lib/api-guard";
 import { createNotification } from "@/lib/notifications";
 import { orderRejectedMessage, orderRejectedTitle } from "@/lib/i18n";
+import { consumeStockForOrder, restoreStockForOrder } from "@/lib/order-inventory";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -62,6 +63,28 @@ export async function PATCH(
     }
     return next;
   });
+
+  // Best-effort stock bookkeeping AFTER the status commit — inventory issues
+  // never block order flow. Stock is consumed when an order is accepted (the
+  // kitchen commits to cooking it) and restored if an already-accepted order
+  // is rejected afterwards.
+  const lines = order.orderItems.map((i) => ({
+    menuItemId: i.menuItemId,
+    quantity: i.quantity,
+    status: i.status,
+  }));
+  if (parsed.data.status === "ACCEPTED" && order.status === "PENDING") {
+    await consumeStockForOrder(restaurantId, order.orderNumber, lines, guard.user.id);
+  }
+  if (parsed.data.status === "REJECTED" && order.status === "ACCEPTED") {
+    await restoreStockForOrder(
+      restaurantId,
+      order.orderNumber,
+      lines,
+      guard.user.id,
+      "rejected after acceptance"
+    );
+  }
 
   // Accepting an order also moves its pending items into the kitchen queue —
   // acceptance and "start preparing" happen in one step.

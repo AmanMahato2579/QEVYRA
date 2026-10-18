@@ -12,7 +12,11 @@ Repo-level docs live in `../docs/` (start with `../AGENTS.md` and
 - **Website** — public storefront per business, rendered at `/s/[slug]` from the `Site`
   engine (bridges legacy `Website` content when no `Site` row exists).
 - **Order** — QR table sessions, server-priced customer orders, per-item kitchen workflow,
-  bill/close, bookings, notifications.
+  bill/close, bookings, notifications. Menu items can carry an inventory **recipe**
+  (`MenuItemRecipe`: inventory item × qty per unit): accepting an order decrements stock,
+  cancelling an item/quantity or rejecting an order restores it — best-effort bookkeeping
+  through `src/lib/order-inventory.ts` that never blocks an order. The admin dashboard
+  shows a low-stock widget fed by the inventory module.
 - **Track** — configurable ordered workflows, tickets with line items, secure public
   tracking at `/track/[code]` (192-bit token, rate-limited code+phone fallback).
 
@@ -30,9 +34,9 @@ src/
     (superadmin)/   /super-admin platform console
     api/            admin/, customer/, super-admin/, auth/, cron/, health
   modules/          core, website, sites, order, track, inventory, notifications
-  lib/              prisma, auth, auth-guard, api-guard, permissions, plans, db (order god-module)
+  lib/              prisma, auth, auth-guard, api-guard, permissions, plans, db (order god-module), order-inventory (order→stock bridge)
   components/       ui + shared
-prisma/             schema (41 models, 16 enums) + append-only migrations + seed
+prisma/             schema (42 models, 16 enums) + append-only migrations + seed
 scripts/            prepare-db, e2e-smoke, backup/restore-db, daily-reset, seed-sites
 docs/               QEVYRA_OPS.md (runbook)
 ```

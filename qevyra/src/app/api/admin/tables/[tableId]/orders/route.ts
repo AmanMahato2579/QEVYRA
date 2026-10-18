@@ -1,5 +1,6 @@
 import { createWaiterOrder } from "@/lib/db";
 import { apiGuard } from "@/lib/api-guard";
+import { consumeStockForOrder } from "@/lib/order-inventory";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { loadOperationalRestaurant, getEffectiveAccess, canOrder } from "@/lib/plans";
@@ -45,6 +46,14 @@ export async function POST(
       tableId,
       items: parsed.data.items,
     });
+    // Waiter orders are born ACCEPTED — consume stock right after commit.
+    // Best-effort: an inventory failure never fails the order.
+    await consumeStockForOrder(
+      restaurantId,
+      order.orderNumber,
+      order.orderItems.map((i) => ({ menuItemId: i.menuItemId, quantity: i.quantity, status: i.status })),
+      guard.user.id
+    );
     return NextResponse.json(order, { status: 201 });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

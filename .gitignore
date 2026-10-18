@@ -26,3 +26,4 @@ backups/
 # Local tooling
 .vercel/
 .pnp.*
+.freebuff/
