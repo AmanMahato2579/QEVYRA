@@ -3,7 +3,11 @@
 > Implementation blueprint for extending QEVYRA into a configurable local-business
 > operating platform. Derived from `PLATFORM_PRODUCT_AND_BUILD_SPEC.md` mapped onto the
 > **existing** codebase. Reuse-first: extend, do not rebuild. Companion docs:
-> `QEVYRA_ARCHITECTURE.md`, `QEVYRA_DATABASE.md`, `QEVYRA_ROUTING.md`, `CURRENT_SYSTEM_AUDIT.md`.
+> `QEVYRA_ARCHITECTURE.md`, `QEVYRA_DATABASE.md`, `QEVYRA_ROUTING.md`, `CURRENT_SYSTEM_AUDIT.md`,
+> the approved-direction proposal [`../../docs/PRODUCT_UI_AND_PLATFORM_MODEL_PLAN.md`](../../docs/PRODUCT_UI_AND_PLATFORM_MODEL_PLAN.md),
+> and its gated execution companion [`../../docs/QEVYRA_IMPLEMENTATION_EXECUTION_PLAN.md`](../../docs/QEVYRA_IMPLEMENTATION_EXECUTION_PLAN.md).
+> The proposal is analysis-only until its product decisions are approved; this build plan remains the
+> implementation source of truth.
 
 **Status policy:** This plan uses the same honesty rule as the master plan: **VERIFIED** = observed working (tsc/lint/build, smoke, or DB proof); **EXISTS** = code present but not fully wired; **PLANNED** = to be built. Every "done" item must be backed by a verification line in §9 or adjacent docs.
 
