@@ -1,13 +1,15 @@
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { apiGuard } from "@/lib/api-guard";
+import { OrderStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ tableId: string }> }
 ) {
-  const session = await auth();
-  const restaurantId = (session?.user as { restaurantId?: string | null })?.restaurantId;
+  const guard = await apiGuard({ permission: "orders.manage" });
+  if (guard.error) return guard.error;
+  const restaurantId = guard.user.restaurantId;
   if (!restaurantId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { tableId } = await params;
@@ -27,13 +29,28 @@ export async function POST(
     });
 
     // Mark all orders in these sessions as COMPLETED
-    await tx.order.updateMany({
+    const sessionIds = actives.map((s) => s.id);
+    const running = await tx.order.findMany({
       where: {
-        tableSessionId: { in: actives.map((s) => s.id) },
+        tableSessionId: { in: sessionIds },
         status: { notIn: ["COMPLETED", "REJECTED"] },
       },
-      data: { status: "COMPLETED", statusChangedAt: new Date() },
+      select: { id: true, status: true },
     });
+    if (running.length > 0) {
+      await tx.order.updateMany({
+        where: { id: { in: running.map((o) => o.id) } },
+        data: { status: "COMPLETED", statusChangedAt: new Date() },
+      });
+      await tx.orderStatusHistory.createMany({
+        data: running.map((o) => ({
+          orderId: o.id,
+          fromStatus: o.status,
+          toStatus: OrderStatus.COMPLETED,
+          note: "Session closed",
+        })),
+      });
+    }
     return true;
   });
 

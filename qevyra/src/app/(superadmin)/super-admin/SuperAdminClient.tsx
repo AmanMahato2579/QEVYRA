@@ -406,7 +406,7 @@ export default function SuperAdminClient({ restaurants }: Props) {
               <label className="text-sm text-gray-300">Publish website immediately</label>
               <label className="flex items-center gap-2 text-sm text-gray-300">
                 <input type="checkbox" {...register("publishWebsite")} className="w-4 h-4 accent-purple-500" />
-                Website live now (customer can visit /b/slug today)
+                Website live now (customer can visit /s/slug today)
               </label>
             </div>
             <div className="space-y-1">

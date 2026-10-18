@@ -9,7 +9,7 @@ QR menu, digital ordering, table booking, and billing SaaS. This is the **live p
 
 ## Tenant scope
 
-Order data is scoped to `Restaurant` (the ordering tenant). Future tenancy generalizes this to `Business` — see `docs/DATABASE_EVOLUTION.md`. Until then, all Order tables keep `restaurantId`.
+Order data in this legacy app is scoped to `Restaurant` (the ordering tenant). The unified `qevyra/` app generalizes tenancy to `Business`; new Order-family tables there ship with `businessId`.
 
 ## Entry point
 

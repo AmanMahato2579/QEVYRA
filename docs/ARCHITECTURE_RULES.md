@@ -38,6 +38,6 @@
 
 ## E. Workflow rules
 
-21. **One migration axis per stage.** Never combine schema change + tenancy refactor + brand rename in one pass (`MIGRATION_MAP.md` §6).
+21. **One migration axis per stage.** Never combine schema change + tenancy refactor + brand rename in one pass — each axis is its own stage with its own verify gate.
 22. **The repo is not committed automatically.** Never commit unless the user explicitly asks.
 23. **When in doubt, ask.** Ambiguity over module scope, plan semantics, or data model → clarify with the user before writing code.

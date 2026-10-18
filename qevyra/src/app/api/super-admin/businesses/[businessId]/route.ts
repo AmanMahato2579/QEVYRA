@@ -1,15 +1,10 @@
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ProductType } from "@prisma/client";
 import { BRAND_COLOR_KEYS } from "@/lib/brand";
 import { logActivity } from "@/lib/activity";
-
-async function isSuperAdmin() {
-  const session = await auth();
-  return (session?.user as { role?: string })?.role === "SUPER_ADMIN";
-}
+import { parseBody, superAdminGuard } from "@/lib/api-guard";
 
 const productActivationSchema = z.object({
   productId: z.nativeEnum(ProductType),
@@ -47,7 +42,8 @@ export async function GET(
   _req: Request,
   { params }: { params: Promise<{ businessId: string }> }
 ) {
-  if (!(await isSuperAdmin())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const guard = await superAdminGuard();
+  if (guard.error) return guard.error;
   const { businessId } = await params;
 
   const business = await prisma.business.findUnique({
@@ -69,12 +65,13 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ businessId: string }> }
 ) {
-  if (!(await isSuperAdmin())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const guard = await superAdminGuard();
+  if (guard.error) return guard.error;
   const { businessId } = await params;
 
-  const parsed = patchSchema.safeParse(await req.json());
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
-  const data: PatchData = parsed.data;
+  const body = await parseBody(req, patchSchema);
+  if (body.error) return body.error;
+  const data: PatchData = body.data;
 
   const business = await prisma.business.findUnique({
     where: { id: businessId },
@@ -243,7 +240,8 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ businessId: string }> }
 ) {
-  if (!(await isSuperAdmin())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const guard = await superAdminGuard();
+  if (guard.error) return guard.error;
   const { businessId } = await params;
   const business = await prisma.business.findUnique({
     where: { id: businessId },

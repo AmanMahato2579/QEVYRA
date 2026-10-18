@@ -80,17 +80,51 @@ model Business {
   // Website/Track has no Restaurant row).
   restaurant Restaurant?
   users      User[]
+  memberships BusinessMembership[]
   customers  BusinessCustomer[]
   website    Website?
   workflows  Workflow[]
   tickets    Ticket[]
+  notificationEvents NotificationEvent[]
+  locations  BusinessLocation[]
   // Product activation: which QEVYRA products the business is entitled to use.
   // This is the source of truth for feature/limit access (see plans.ts).
   products   BusinessProduct[]
+  site       Site?
+  siteHighlights SiteHighlight[]
+  siteItems  SiteItem[]
+  inventoryItems InventoryItem[]
+  inventoryMovements InventoryMovement[]
 
   @@index([slug])
   @@index([type])
   @@index([plan])
+}
+
+// A physical place a business operates from. The first release usually has one
+// location, but tables, rooms, courts, stock, bookings and staff assignments are
+// location-scoped in the target model. This entity exists now so multi-location
+// support is additive (add nullable `locationId` FKs later) rather than a
+// schema fork. Exactly one location may be flagged `isPrimary`.
+model BusinessLocation {
+  id           String   @id @default(cuid())
+  businessId   String
+  name         String
+  slug         String
+  address      String?
+  phone        String?
+  mapUrl       String?
+  openingHours String?
+  isPrimary    Boolean  @default(false)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, slug])
+  @@index([businessId])
+  @@index([businessId, isActive])
 }
 
 // Platform product catalog (seeded by super admin, mirror of plan-catalog.ts).
@@ -150,10 +184,33 @@ model User {
 
   business   Business?   @relation(fields: [businessId], references: [id], onDelete: SetNull)
   restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  memberships BusinessMembership[]
+  inventoryMovements InventoryMovement[] @relation("InventoryMovementActor")
 
   @@index([email])
   @@index([businessId])
   @@index([restaurantId])
+}
+
+// Staff membership: links a login (User) to a tenant (Business) with a
+// business-scoped staff role. A user's effective permissions inside a business
+// come from here; `User.role` remains the platform login role for backward
+// compatibility. Additive — existing owner logins keep working with no rows.
+model BusinessMembership {
+  id         String    @id @default(cuid())
+  userId     String
+  businessId String
+  role       StaffRole @default(OWNER)
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, businessId])
+  @@index([businessId])
+  @@index([userId])
 }
 
 // Global customer identity. NEVER a per-tenancy table: a person is one record
@@ -196,6 +253,19 @@ enum UserRole {
   SUPER_ADMIN
   RESTAURANT_ADMIN
   TRACKING_ADMIN
+}
+
+// Business-scoped staff roles. Distinct from the three platform login roles
+// above; a BusinessMembership's role governs what a login may do in one tenant.
+enum StaffRole {
+  OWNER
+  MANAGER
+  FRONT_DESK
+  WAITER
+  KITCHEN
+  TECHNICIAN
+  INVENTORY
+  ACCOUNTANT
 }
 
 // QEVYRA functional products (what a business is entitled to USE), distinct
@@ -486,6 +556,7 @@ model Order {
   restaurant      Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   tableSession    TableSession @relation(fields: [tableSessionId], references: [id], onDelete: Cascade)
   orderItems      OrderItem[]
+  statusHistory   OrderStatusHistory[]
 
   @@unique([restaurantId, orderNumber])
   @@unique([tableSessionId, clientRequestId])
@@ -495,6 +566,24 @@ model Order {
   @@index([customerToken])
   @@index([restaurantId, createdAt])
   @@index([restaurantId, status, statusChangedAt])
+}
+
+// Immutable audit trail of an order's status lifecycle (created → accepted →
+// completed, or rejected). Mirrors TRACK's TicketStatusHistory. Written inside
+// the same transaction as the status change so history can never diverge from
+// the order; rows are never updated or deleted (cascade-removed with the order).
+model OrderStatusHistory {
+  id         String      @id @default(cuid())
+  orderId    String
+  fromStatus OrderStatus?
+  toStatus   OrderStatus
+  note       String?
+  createdAt  DateTime    @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([orderId, createdAt])
 }
 
 model OrderItem {
@@ -585,12 +674,30 @@ model Booking {
   restaurant      Restaurant      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   service         BookableService @relation(fields: [serviceId], references: [id], onDelete: Cascade)
   tableSession    TableSession?   @relation(fields: [tableSessionId], references: [id], onDelete: SetNull)
+  statusHistory   BookingStatusHistory[]
 
   @@index([restaurantId])
   @@index([serviceId])
   @@index([restaurantId, bookingDate])
   @@index([restaurantId, status])
   @@index([serviceId, bookingDate, status])
+}
+
+// Immutable audit trail of a booking's status lifecycle (requested → accepted →
+// completed, or rejected/cancelled). Written in the same transaction as the
+// status change; rows are append-only and cascade-removed with the booking.
+model BookingStatusHistory {
+  id         String        @id @default(cuid())
+  bookingId  String
+  fromStatus BookingStatus?
+  toStatus   BookingStatus
+  note       String?
+  createdAt  DateTime      @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@index([bookingId, createdAt])
 }
 
 model PushSubscription {
@@ -713,13 +820,16 @@ model WorkflowStep {
 }
 
 // One tracked job/case through a workflow. `trackingCode` (e.g. GAR-0001) is the
-// public identifier used by QR links and the customer tracking page.
+// human-friendly reference shown to staff/customers; `publicToken` is the
+// high-entropy, unguessable secret embedded in customer QR links so the public
+// tracking page can never be enumerated by guessing a sequential code.
 model Ticket {
   id           String   @id @default(cuid())
   businessId   String
   workflowId   String
   ticketNumber Int
   trackingCode String   @unique
+  publicToken  String   @unique
 
   customerName  String?
   customerPhone String?
@@ -737,6 +847,7 @@ model Ticket {
   workflow     Workflow           @relation(fields: [workflowId], references: [id], onDelete: Cascade)
   currentStep  WorkflowStep?      @relation(fields: [currentStepId], references: [id], onDelete: SetNull)
   statusHistory TicketStatusHistory[]
+  items         TicketItem[]
 
   @@unique([businessId, ticketNumber])
   @@unique([workflowId, ticketNumber])
@@ -769,10 +880,222 @@ model TicketStatusHistory {
   @@index([ticketId, createdAt])
 }
 
+// Optional structured line items attached to a Ticket (e.g. "2 × suit
+// stitching"). Free-form per ticket, never shared across tickets, and separate
+// from the free-text `Ticket.itemSummary`. Prices are optional and never
+// invented — a line with no `unitPrice` simply shows no amount.
+model TicketItem {
+  id          String   @id @default(cuid())
+  ticketId    String
+  name        String
+  description String?
+  quantity    Int      @default(1)
+  unitPrice   Decimal? @db.Decimal(10, 2)
+  currency    String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId])
+  @@index([ticketId, sortOrder])
+}
+
 enum TicketStatus {
   PLACED
   IN_PROGRESS
   READY
   COMPLETED
   CANCELLED
+}
+
+// =============================================================================
+// SITES — template-driven public storefront module (Phase A)
+// =============================================================================
+
+enum SiteType {
+  GENERAL
+  TRACKING
+  MENU
+}
+
+model Site {
+  id               String          @id @default(cuid())
+  businessId       String          @unique
+  slug             String          @unique
+  type             SiteType
+  name             String
+  shortDescription String?
+  aboutText        String?
+  storyText        String?
+  logoUrl          String?
+  heroImageUrl     String?
+  primaryColor     String?
+  phone            String?
+  whatsapp         String?
+  addressText      String?
+  mapUrl           String?
+  openingHours     String?
+  googleReviewUrl  String?
+  socialLinks      Json?
+  isPublished      Boolean         @default(false)
+  enableItems      Boolean         @default(false)
+  enableTrackOrder Boolean         @default(false)
+  enableAds        Boolean         @default(false)
+  enableBooking    Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  business         Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  highlights       SiteHighlight[]
+  items            SiteItem[]
+
+  @@index([slug])
+  @@index([businessId])
+}
+
+model SiteHighlight {
+  id          String   @id @default(cuid())
+  siteId      String
+  businessId  String
+  title       String
+  description String?
+  imageUrl    String?
+  sortOrder   Int      @default(0)
+
+  site        Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([siteId, sortOrder])
+  @@index([businessId])
+}
+
+model SiteItem {
+  id          String   @id @default(cuid())
+  siteId      String
+  businessId  String
+  name        String
+  description String?
+  priceText   String?
+  imageUrl    String?
+  category    String?
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+
+  site        Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([siteId, sortOrder])
+  @@index([businessId])
+}
+
+model SiteAd {
+  id        String   @id @default(cuid())
+  title     String
+  imageUrl  String
+  linkUrl   String
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, sortOrder])
+}
+
+// ─── Inventory (Suite A) ─────────────────────────────────────────────────────
+// Tenant-scoped stock control. An InventoryItem is a thing a business counts
+// (ingredient, retail good, spare part). Stock is NEVER edited directly: every
+// change is an InventoryMovement, which keeps a running balance (stockAfter) and
+// the actor/time, so the ledger doubles as an audit trail. `currentStock` is a
+// cached roll-up maintained by the movement service inside one transaction.
+enum InventoryMovementType {
+  RECEIVED // stock in (purchase / delivery)
+  USED // consumed or sold
+  WASTE // spoilage / loss
+  ADJUSTMENT // manual count correction (quantity may be + or -)
+}
+
+model InventoryItem {
+  id               String   @id @default(cuid())
+  businessId       String
+  name             String
+  sku              String?
+  unit             String   @default("unit")
+  currentStock     Decimal  @default(0) @db.Decimal(12, 3)
+  reorderThreshold Decimal  @default(0) @db.Decimal(12, 3)
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  business  Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  movements InventoryMovement[]
+
+  @@unique([businessId, sku])
+  @@index([businessId])
+  @@index([businessId, isActive])
+}
+
+model InventoryMovement {
+  id         String                @id @default(cuid())
+  businessId String
+  itemId     String
+  type       InventoryMovementType
+  // Signed effect on stock: RECEIVED > 0, USED/WASTE < 0, ADJUSTMENT either.
+  quantity   Decimal               @db.Decimal(12, 3)
+  stockAfter Decimal               @db.Decimal(12, 3)
+  note       String?
+  actorId    String?
+  createdAt  DateTime              @default(now())
+
+  business Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  item     InventoryItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  actor    User?         @relation("InventoryMovementActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, createdAt])
+  @@index([itemId, createdAt])
+}
+
+// ─── Outbound notifications (platform core) ──────────────────────────────────
+// A durable, honest log of every external message the platform intends to send
+// (WhatsApp/SMS/email). The row is written BEFORE any network call, so a message
+// that cannot be delivered because no provider is connected is recorded as
+// NOT_CONFIGURED rather than silently lost. Provider adapters flip it to
+// SENT/FAILED. No business state is stored here — WhatsApp/SMS are channels.
+enum NotificationChannel {
+  WHATSAPP
+  SMS
+  EMAIL
+}
+
+enum NotificationDeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  NOT_CONFIGURED
+}
+
+model NotificationEvent {
+  id         String                     @id @default(cuid())
+  businessId String
+  channel    NotificationChannel
+  status     NotificationDeliveryStatus @default(PENDING)
+  recipient  String
+  subject    String?
+  body       String
+  // Adapter id that owns this channel (e.g. "whatsapp-cloud"); null if none exists.
+  provider   String?
+  // What triggered it, e.g. refType "ticket" + refId.
+  refType    String?
+  refId      String?
+  error      String?
+  attempts   Int                        @default(0)
+  sentAt     DateTime?
+  createdAt  DateTime                   @default(now())
+  updatedAt  DateTime                   @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, createdAt])
+  @@index([businessId, status])
+  @@index([refType, refId])
 }

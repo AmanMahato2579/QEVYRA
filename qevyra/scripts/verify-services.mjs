@@ -31,7 +31,7 @@ function storeCookies(jar, res) {
     if (idx > 0) jar.set(pair.slice(0, idx).trim(), pair.slice(idx + 1));
   }
 }
-async function req(method, path, { jar, json, query, raw } = {}) {
+async function req(method, path, { jar, json, query } = {}) {
   const url = new URL(path, BASE);
   if (query) for (const [k, v] of Object.entries(query)) url.searchParams.set(k, String(v));
   const headers = { "Accept": "application/json" };
@@ -163,7 +163,6 @@ await step("create public booking", async () => {
   return `id=${r.body.id} phone=${phone}`;
 });
 await step("my bookings by slug+phone", async () => {
-  const service = await prisma.bookableService.findFirst({ where: { restaurant: { slug: "gorkha-homestay" } } });
   const phone = await prisma.booking.findUnique({ where: { id: createdBookingIds[0] } }).then((b) => b?.contactPhone);
   if (!phone) throw new Error("no booking");
   const r = await req("GET", "/api/customer/bookings/public", { query: { slug: "gorkha-homestay", phone } });

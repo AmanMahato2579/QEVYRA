@@ -1,4 +1,3 @@
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -10,6 +9,7 @@ import { logActivity } from "@/lib/activity";
 import { findPackage } from "@/lib/packages";
 import { isTrackBusinessType } from "@/lib/business-kind";
 import { PRODUCT_IDS, planProductsFor } from "@/lib/plan-catalog";
+import { parseBody, superAdminGuard } from "@/lib/api-guard";
 
 const schema = z.object({
   name: z.string().min(2),
@@ -29,19 +29,13 @@ const schema = z.object({
   products: z.array(z.nativeEnum(ProductType)).optional(),
 });
 
-async function isSuperAdmin() {
-  const session = await auth();
-  return (session?.user as { role?: string })?.role === "SUPER_ADMIN";
-}
-
 export async function POST(req: Request) {
-  if (!(await isSuperAdmin())) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
+  const guard = await superAdminGuard();
+  if (guard.error) return guard.error;
 
-  const body = await req.json();
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  const body = await parseBody(req, schema);
+  if (body.error) return body.error;
+  const parsed = { data: body.data };
 
   const {
     name,

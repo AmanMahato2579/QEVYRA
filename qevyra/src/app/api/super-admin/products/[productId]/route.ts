@@ -1,15 +1,10 @@
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ProductType } from "@prisma/client";
 import { ALL_FEATURE_KEYS } from "@/lib/plan-catalog";
 import { logActivity } from "@/lib/activity";
-
-async function isSuperAdmin() {
-  const session = await auth();
-  return (session?.user as { role?: string })?.role === "SUPER_ADMIN";
-}
+import { parseBody, superAdminGuard } from "@/lib/api-guard";
 
 const schema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -22,16 +17,17 @@ const schema = z.object({
 });
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ productId: string }> }) {
-  if (!(await isSuperAdmin())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const guard = await superAdminGuard();
+  if (guard.error) return guard.error;
 
   const { productId } = await params;
   if (!(productId in ProductType)) return NextResponse.json({ error: "Unknown product" }, { status: 400 });
 
-  const parsed = schema.safeParse(await req.json());
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  const body = await parseBody(req, schema);
+  if (body.error) return body.error;
 
   const update: Record<string, unknown> = {};
-  const data = parsed.data;
+  const data = body.data;
   for (const key of ["name", "description", "isVisible", "isActive", "sortOrder"] as const) {
     if (data[key] !== undefined) update[key] = data[key];
   }

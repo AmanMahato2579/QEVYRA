@@ -117,7 +117,7 @@ export default function HomePage() {
               {
                 title: "Demo Momo House",
                 desc: "Restaurant · website, QR menu & ordering",
-                href: "/b/demo-restaurant",
+                href: "/s/demo-restaurant",
                 icon: Globe,
               },
               {
@@ -129,7 +129,7 @@ export default function HomePage() {
               {
                 title: "Sita's Tailoring",
                 desc: "Service business · website + job tracking",
-                href: "/b/sitas-tailoring",
+                href: "/s/sitas-tailoring",
                 icon: Globe,
               },
               {

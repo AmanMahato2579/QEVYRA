@@ -1,11 +1,40 @@
 // QEVYRA Track — server service.
 // The "service tracking for every business" engine: a Business defines one or
 // more Workflows (a process with ordered steps) and issues a Ticket per job.
-// Each ticket carries a human-friendly tracking code (e.g. GAR-0001) that a
-// customer can follow on the public /track page. Everything is tenant-scoped
+// Each ticket carries a human-friendly tracking code (e.g. GAR-0001) for staff
+// plus an unguessable public token that customers follow on the public /track
+// page. Everything is tenant-scoped
 // through businessId and gated on the `business_track` plan feature.
+import { randomBytes } from "crypto";
 import { prisma } from "@/lib/prisma";
-import { Prisma, TicketStatus } from "@prisma/client";
+import { NotificationChannel, Prisma, TicketStatus } from "@prisma/client";
+import { enqueueNotification } from "@/modules/notifications/services";
+
+// Customer-facing phrasing per status, used in the outbound notification body.
+const STATUS_MESSAGE: Record<string, string> = {
+  PLACED: "has been received",
+  IN_PROGRESS: "is in progress",
+  READY: "is ready",
+  COMPLETED: "is completed",
+  CANCELLED: "has been cancelled",
+};
+
+async function notifyTicketCustomer(
+  businessId: string,
+  ticket: { id: string; customerPhone: string | null; publicToken: string },
+  text: string
+) {
+  if (!ticket.customerPhone) return;
+  const base = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, "");
+  const url = base ? `${base}/track/${ticket.publicToken}` : "";
+  await enqueueNotification(businessId, {
+    channel: NotificationChannel.WHATSAPP,
+    recipient: ticket.customerPhone,
+    body: url ? `${text}\n${url}` : text,
+    refType: "ticket",
+    refId: ticket.id,
+  });
+}
 
 export type TrackWorkflowWithSteps = Prisma.WorkflowGetPayload<{
   include: {
@@ -18,6 +47,7 @@ export type TicketWithWorkflow = Prisma.TicketGetPayload<{
   include: {
     workflow: { select: { id: true; name: true; codePrefix: true } };
     currentStep: true;
+    items: { orderBy: { sortOrder: "asc" } };
   };
 }>;
 
@@ -43,6 +73,17 @@ export function normalizeCodePrefix(value: string): string {
 
 export function buildTrackingCode(prefix: string, ticketNumber: number): string {
   return `${prefix}-${String(ticketNumber).padStart(4, "0")}`;
+}
+
+/** 192-bit URL-safe secret used in customer QR links. Non-guessable, unlike the
+ *  sequential `trackingCode`, so the public tracking page cannot be enumerated. */
+export function generatePublicToken(): string {
+  return randomBytes(24).toString("base64url");
+}
+
+/** Digits-only phone normalization for customer self-lookup matching. */
+function normalizePhone(value: string): string {
+  return value.replace(/[^0-9]/g, "");
 }
 
 /** True when a Prisma error is a unique-constraint violation (P2002). */
@@ -195,12 +236,50 @@ export async function deleteWorkflow(businessId: string, workflowId: string): Pr
 
 // ─── Tickets ────────────────────────────────────────────────────────────────
 
+export interface TicketItemInput {
+  name: string;
+  description?: string | null;
+  quantity?: number | null;
+  unitPrice?: number | null;
+  currency?: string | null;
+}
+
 export interface TicketInput {
   workflowId: string;
   customerName?: string | null;
   customerPhone?: string | null;
   itemSummary?: string | null;
   notes?: string | null;
+  items?: TicketItemInput[] | null;
+}
+
+/** Clean a raw list of line items into Prisma create inputs. Blank names are
+ *  dropped; quantity defaults to 1; prices stay null when not supplied so no
+ *  amount is ever invented. */
+function normalizeTicketItems(items?: TicketItemInput[] | null) {
+  if (!items?.length) return [];
+  const rows: { name: string; description: string | null; quantity: number; unitPrice: number | null; currency: string | null; sortOrder: number }[] = [];
+  for (const it of items) {
+    const name = it.name?.trim();
+    if (!name) continue;
+    const qty =
+      typeof it.quantity === "number" && Number.isFinite(it.quantity) && it.quantity > 0
+        ? Math.floor(it.quantity)
+        : 1;
+    const price =
+      typeof it.unitPrice === "number" && Number.isFinite(it.unitPrice) && it.unitPrice >= 0
+        ? it.unitPrice
+        : null;
+    rows.push({
+      name,
+      description: it.description?.trim() || null,
+      quantity: qty,
+      unitPrice: price,
+      currency: price != null ? it.currency?.trim() || null : null,
+      sortOrder: rows.length,
+    });
+  }
+  return rows;
 }
 
 export async function createTicket(businessId: string, input: TicketInput): Promise<TicketWithWorkflow> {
@@ -209,10 +288,12 @@ export async function createTicket(businessId: string, input: TicketInput): Prom
   });
   if (!workflow) throw new TrackError("not_found", "Workflow not found or inactive.");
 
+  const items = normalizeTicketItems(input.items);
+
   // Atomic ticket numbering: a per-workflow counter upserted with `increment`
   // (one locked row, no read-then-write race) — concurrent creates can never
   // reuse a ticket number.
-  return prisma.$transaction(async (tx) => {
+  const ticket = await prisma.$transaction(async (tx) => {
     const seq = await tx.workflowSequence.upsert({
       where: { workflowId: workflow.id },
       update: { lastTicketNumber: { increment: 1 } },
@@ -227,30 +308,44 @@ export async function createTicket(businessId: string, input: TicketInput): Prom
     // business suffix instead of returning a 500 on the very rare P2002.
     for (let attempt = 0; ; attempt++) {
       try {
-        const ticket = await tx.ticket.create({
+        const created = await tx.ticket.create({
           data: {
             businessId,
             workflowId: workflow.id,
             ticketNumber,
             trackingCode,
+            publicToken: generatePublicToken(),
             customerName: input.customerName?.trim() || null,
             customerPhone: input.customerPhone?.trim() || null,
             itemSummary: input.itemSummary?.trim() || null,
             notes: input.notes?.trim() || null,
             status: "PLACED",
+            ...(items.length ? { items: { create: items } } : {}),
           },
-          include: { workflow: { select: { id: true, name: true, codePrefix: true } }, currentStep: true },
+          include: {
+            workflow: { select: { id: true, name: true, codePrefix: true } },
+            currentStep: true,
+            items: { orderBy: { sortOrder: "asc" } },
+          },
         });
         await tx.ticketStatusHistory.create({
-          data: { ticketId: ticket.id, toStatus: "PLACED", note: "Ticket placed" },
+          data: { ticketId: created.id, toStatus: "PLACED", note: "Ticket placed" },
         });
-        return ticket;
+        return created;
       } catch (error) {
         if (attempt >= 2 || !isUniqueViolation(error)) throw error;
         trackingCode = `${buildTrackingCode(workflow.codePrefix, ticketNumber)}-${businessToken(businessId)}`;
       }
     }
   });
+
+  await notifyTicketCustomer(
+    businessId,
+    ticket,
+    `Your ${workflow.name} job ${ticket.trackingCode} has been received.`
+  );
+
+  return ticket;
 }
 
 export async function advanceTicket(businessId: string, ticketId: string): Promise<TicketWithWorkflow> {
@@ -310,9 +405,22 @@ export async function advanceTicket(businessId: string, ticketId: string): Promi
 
   const updated = await prisma.ticket.findUnique({
     where: { id: ticket.id },
-    include: { workflow: { select: { id: true, name: true, codePrefix: true } }, currentStep: true },
+    include: {
+      workflow: { select: { id: true, name: true, codePrefix: true } },
+      currentStep: true,
+      items: { orderBy: { sortOrder: "asc" } },
+    },
   });
   if (!updated) throw new TrackError("not_found", "Ticket not found.");
+
+  await notifyTicketCustomer(
+    businessId,
+    updated,
+    `Your job ${updated.trackingCode} ${STATUS_MESSAGE[updated.status] ?? "was updated"}${
+      updated.currentStep ? ` — ${updated.currentStep.name}` : ""
+    }.`
+  );
+
   return updated;
 }
 
@@ -345,9 +453,16 @@ export async function cancelTicket(businessId: string, ticketId: string): Promis
 
   const updated = await prisma.ticket.findUnique({
     where: { id: ticket.id },
-    include: { workflow: { select: { id: true, name: true, codePrefix: true } }, currentStep: true },
+    include: {
+      workflow: { select: { id: true, name: true, codePrefix: true } },
+      currentStep: true,
+      items: { orderBy: { sortOrder: "asc" } },
+    },
   });
   if (!updated) throw new TrackError("not_found", "Ticket not found.");
+
+  await notifyTicketCustomer(businessId, updated, `Your job ${updated.trackingCode} has been cancelled.`);
+
   return updated;
 }
 
@@ -359,7 +474,11 @@ export function listTickets(businessId: string, status?: string | null): Promise
       ...(valid && status !== "ALL" ? { status: status as TicketStatus } : {}),
     },
     orderBy: { createdAt: "desc" },
-    include: { workflow: { select: { id: true, name: true, codePrefix: true } }, currentStep: true },
+    include: {
+      workflow: { select: { id: true, name: true, codePrefix: true } },
+      currentStep: true,
+      items: { orderBy: { sortOrder: "asc" } },
+    },
     take: 100,
   });
 }
@@ -378,9 +497,70 @@ export function getTicketDetails(businessId: string, ticketId: string) {
     include: {
       workflow: { include: { steps: { orderBy: { sortOrder: "asc" } } } },
       currentStep: true,
+      items: { orderBy: { sortOrder: "asc" } },
       statusHistory: { orderBy: { createdAt: "asc" }, include: { fromStep: true, toStep: true } },
     },
   });
+}
+
+// ─── Ticket line items ──────────────────────────────────────────────────────
+// Optional, free-form line items on a ticket. Everything is tenant-scoped: the
+// parent ticket must belong to `businessId` before any write touches its items.
+
+export async function addTicketItem(
+  businessId: string,
+  ticketId: string,
+  input: TicketItemInput
+) {
+  const ticket = await prisma.ticket.findFirst({ where: { id: ticketId, businessId }, select: { id: true } });
+  if (!ticket) throw new TrackError("not_found", "Ticket not found.");
+
+  const [row] = normalizeTicketItems([input]);
+  if (!row) throw new TrackError("invalid", "A line item needs a name.");
+
+  const last = await prisma.ticketItem.findFirst({
+    where: { ticketId },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true },
+  });
+
+  return prisma.ticketItem.create({
+    data: { ticketId, ...row, sortOrder: (last?.sortOrder ?? -1) + 1 },
+  });
+}
+
+async function requireTicketItem(businessId: string, ticketId: string, itemId: string) {
+  const item = await prisma.ticketItem.findFirst({
+    where: { id: itemId, ticketId, ticket: { businessId } },
+  });
+  if (!item) throw new TrackError("not_found", "Line item not found.");
+  return item;
+}
+
+export async function updateTicketItem(
+  businessId: string,
+  ticketId: string,
+  itemId: string,
+  input: TicketItemInput
+) {
+  const existing = await requireTicketItem(businessId, ticketId, itemId);
+  const [row] = normalizeTicketItems([input]);
+  if (!row) throw new TrackError("invalid", "Line item name is required.");
+  return prisma.ticketItem.update({
+    where: { id: existing.id },
+    data: {
+      name: row.name,
+      description: row.description,
+      quantity: row.quantity,
+      unitPrice: row.unitPrice,
+      currency: row.currency,
+    },
+  });
+}
+
+export async function deleteTicketItem(businessId: string, ticketId: string, itemId: string) {
+  const existing = await requireTicketItem(businessId, ticketId, itemId);
+  await prisma.ticketItem.delete({ where: { id: existing.id } });
 }
 
 // ─── Public lookup ──────────────────────────────────────────────────────────
@@ -394,7 +574,14 @@ export type PublicTicket = {
   createdAt: Date;
   customerName: string | null;
   itemSummary: string | null;
-  notes: string | null;
+  items: {
+    id: string;
+    name: string;
+    description: string | null;
+    quantity: number;
+    unitPrice: number | null;
+    currency: string | null;
+  }[];
   currentStepId: string | null;
   business: {
     slug: string;
@@ -418,14 +605,16 @@ export type PublicTicket = {
   }[];
 };
 
-/** Public, read-only lookup of a ticket by its human tracking code. */
-export async function getPublicTicket(rawCode: string): Promise<PublicTicket | null> {
-  const code = rawCode.trim().toUpperCase();
-  if (!code) return null;
+/** Public, read-only lookup of a ticket by its unguessable `publicToken` (the
+ *  secret embedded in the customer's QR/link). Never look tickets up by the
+ *  sequential `trackingCode` alone — that would let anyone enumerate jobs. */
+export async function getPublicTicket(rawToken: string): Promise<PublicTicket | null> {
+  const token = rawToken.trim();
+  if (!token) return null;
 
   const ticket = await prisma.ticket.findUnique({
-    where: { trackingCode: code },
-    include: { business: true, workflow: true },
+    where: { publicToken: token },
+    include: { business: true, workflow: true, items: { orderBy: { sortOrder: "asc" } } },
   });
   if (!ticket) return null;
 
@@ -451,7 +640,14 @@ export async function getPublicTicket(rawCode: string): Promise<PublicTicket | n
     createdAt: ticket.createdAt,
     customerName: ticket.customerName,
     itemSummary: ticket.itemSummary,
-    notes: ticket.notes,
+    items: ticket.items.map((it) => ({
+      id: it.id,
+      name: it.name,
+      description: it.description,
+      quantity: it.quantity,
+      unitPrice: it.unitPrice == null ? null : Number(it.unitPrice),
+      currency: it.currency,
+    })),
     currentStepId: ticket.currentStepId,
     business: {
       slug: ticket.business.slug,
@@ -479,4 +675,25 @@ export async function getPublicTicket(rawCode: string): Promise<PublicTicket | n
       toStepName: h.toStep?.name ?? null,
     })),
   };
+}
+
+/** Manual lookup fallback for customers who lost their QR/link. The human
+ *  tracking code is sequential and guessable, so it is never sufficient on its
+ *  own: the caller must also supply the phone number recorded on the ticket.
+ *  Returns the public link token on a match, else null. */
+export async function lookupTicketByCodeAndPhone(
+  rawCode: string,
+  rawPhone: string
+): Promise<string | null> {
+  const code = rawCode.trim().toUpperCase();
+  const phone = normalizePhone(rawPhone);
+  if (!code || phone.length < 6) return null;
+
+  const ticket = await prisma.ticket.findUnique({
+    where: { trackingCode: code },
+    select: { publicToken: true, customerPhone: true },
+  });
+  if (!ticket || !ticket.customerPhone) return null;
+  if (normalizePhone(ticket.customerPhone) !== phone) return null;
+  return ticket.publicToken;
 }

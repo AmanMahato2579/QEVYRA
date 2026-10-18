@@ -1,10 +1,12 @@
-# AGENTS.md — QEVYRA repo guide for AI agents
+﻿# AGENTS.md — QEVYRA repo guide for AI agents
 
-> Read this first. Then read `docs/ARCHITECTURE_RULES.md` (binding) and, before touching anything, `docs/CURRENT_SYSTEM_AUDIT.md`.
+> Read this first. Then read `docs/ARCHITECTURE_RULES.md` (binding).
 
 ## What this repo is
 
-QEVYRA = multi-business digital platform. One repo, one app, one Postgres DB. Products are modules: **Order** (live, at `modules/order/menu-saas`), **Track** and **Website** (placeholders, no code).
+QEVYRA = multi-business digital platform. One repo, one app, one Postgres DB. Products are modules: **Order** (live), **Track**, **Website/Sites**.
+
+**All new development happens in `qevyra/`** — the unified Next.js 16 + Prisma app. `modules/order/menu-saas` is the legacy deployed product; it stays working and is not where features are added.
 
 ## Golden rules (see ARCHITECTURE_RULES.md for the full list)
 
@@ -17,27 +19,32 @@ QEVYRA = multi-business digital platform. One repo, one app, one Postgres DB. Pr
 
 ## Where things live
 
-- `docs/` — architecture truth: audit (current), architecture (target), repo structure, migration map, rules, roadmap, DB evolution.
-- `modules/order/menu-saas/` — the working Next.js 16 / Prisma / Postgres app (own package.json, own prisma, own vercel.json).
-- `modules/track/`, `modules/website/` — placeholder product folders (README only).
+- `docs/` — architecture truth: `ARCHITECTURE_RULES.md` (binding rules) is the only standing doc here; keep the set minimal.
+- `qevyra/` — **the app**. Unified Next.js 16 / Prisma / Postgres platform (own package.json, own prisma, own vercel.json). All new work goes here.
+- `qevyra/docs/` — operations runbook (`QEVYRA_OPS.md`): local dev, deploy, backups, smoke checks.
+- `modules/order/menu-saas/` — the legacy deployed product. Keep it working; do not add features to it.
+- `modules/track/`, `modules/website/` — product-folder READMEs only; the real code lives in `qevyra/src/modules/`.
 
-## Getting around the live product
+## Getting around the app
 
-- Stack: Next.js 16.3.3 App Router, React 19.2.8, Tailwind v4, Radix UI, Prisma 6 PostgreSQL, NextAuth v5 (credentials + JWT), Zod, qrcode.react, web-push.
-- Auth: `src/auth.config.ts`, `src/lib/auth.ts`, `src/proxy.ts` (middleware). Roles: SUPER_ADMIN / RESTAURANT_ADMIN.
-- Plans: `src/lib/plan-catalog.ts` (pure) + `src/lib/plans.ts` (server). BRONZE / SILVER / STAR; GOLD deliberately unimplemented.
-- Order core: `src/lib/db.ts` (god-module — refactor is tracked, do NOT casually rewrite), `src/lib/session-math.ts` (pure).
-- Customer app: `/r/[restaurantSlug]/t/[tableToken]`. Admin: `/admin`. Platform: `/super-admin`.
+- Stack: Next.js 16.3.3 App Router, React 19.2.8, Tailwind v4, Radix UI, Prisma 6 PostgreSQL, NextAuth v5 (credentials + JWT), Zod 4, qrcode.react, web-push.
+- Auth: `qevyra/src/config/auth.config.ts` (edge-safe), `qevyra/src/lib/auth.ts`, `qevyra/src/proxy.ts` (middleware). Guards: `qevyra/src/lib/auth-guard.ts` + `apiGuard`. Roles: SUPER_ADMIN / RESTAURANT_ADMIN / TRACKING_ADMIN.
+- Plans: `qevyra/src/lib/plan-catalog.ts` (pure) + `qevyra/src/lib/plans.ts` (server). BRONZE / SILVER / STAR; GOLD deliberately unimplemented.
+- Order core: `qevyra/src/lib/db.ts` (god-module — refactor is tracked, do NOT casually rewrite), `qevyra/src/lib/session-math.ts` (pure).
+- Modules: `qevyra/src/modules/` — `track/` (services + catalog), `website/`, `sites/`, `inventory/`, `notifications/`. Route = guard → validate (Zod) → service → reply.
+- Routes: public storefront `/s/[slug]`; legacy `/b/[slug]` and `/w/[slug]` redirect there. Customer QR app `/r/[restaurantSlug]/t/[tableToken]`. Track public `/track/[code]` (token-resolved). Admin `/admin`, `/track-admin`, platform `/super-admin`.
 
-## Commands (run inside `modules/order/menu-saas`)
+## Commands (run inside `qevyra/`)
 
 - Install: `npm install`
-- Dev: `npm run dev` (requires local Postgres via `docker-compose.yml`; copy `.env.example` → `.env.local`)
+- Dev: `npm run dev` (requires local Postgres via `docker-compose.yml`; copy `.env.example` → `.env`)
 - Lint: `npm run lint`
 - Typecheck: `npx tsc --noEmit`
 - Build: `npm run build`
+- Seed: `npx prisma db seed`
 - Smoke: `node scripts/e2e-smoke.mjs` (needs a running dev server)
 - DB local: `docker compose up -d db` then `npx prisma migrate dev`
+- Prod migrations: `npx prisma migrate deploy`
 
 ## PR / change checklist
 

@@ -33,10 +33,9 @@ interface Category {
 
 interface Props {
   categories: Category[];
-  restaurantId: string;
 }
 
-export default function CategoriesClient({ categories: initialCategories, restaurantId }: Props) {
+export default function CategoriesClient({ categories: initialCategories }: Props) {
   const router = useRouter();
   const { toast } = useToast();
   const [, startTransition] = useTransition();

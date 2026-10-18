@@ -27,6 +27,7 @@ export default async function TrackAdminLayout({
       userEmail={ctx.user.email}
       businessName={ctx.business.name}
       businessType={ctx.business.type}
+      role={ctx.user.staffRole ?? ctx.user.role}
     >
       {children}
     </TrackAdminShell>

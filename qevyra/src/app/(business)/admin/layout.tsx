@@ -1,5 +1,6 @@
 import { requireAuth } from "@/lib/auth-guard";
 import { prisma } from "@/lib/prisma";
+import { moduleFlagsFromProducts } from "@/lib/navigation";
 import AdminShell from "@/components/admin/AdminShell";
 import AuthStateWatcher from "@/components/admin/AuthStateWatcher";
 
@@ -42,9 +43,8 @@ export default async function AdminLayout({
     });
     activeProducts = rows.map((r) => r.productId);
   }
-  const hasMenu = activeProducts.length === 0 || activeProducts.includes("MENU");
-  const hasOrder = activeProducts.length === 0 || activeProducts.includes("ORDER");
-  const hasWebsite = activeProducts.length === 0 || activeProducts.includes("WEBSITE");
+  const { menu: hasMenu, order: hasOrder, website: hasWebsite } =
+    moduleFlagsFromProducts(activeProducts);
 
   return (
     <>

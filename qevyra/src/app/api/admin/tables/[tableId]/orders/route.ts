@@ -1,5 +1,5 @@
-import { auth } from "@/lib/auth";
 import { createWaiterOrder } from "@/lib/db";
+import { apiGuard } from "@/lib/api-guard";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { loadOperationalRestaurant, getEffectiveAccess, canOrder } from "@/lib/plans";
@@ -20,8 +20,9 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ tableId: string }> }
 ) {
-  const session = await auth();
-  const restaurantId = (session?.user as { restaurantId?: string | null })?.restaurantId;
+  const guard = await apiGuard({ permission: "orders.manage" });
+  if (guard.error) return guard.error;
+  const restaurantId = guard.user.restaurantId;
   if (!restaurantId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const restaurant = await loadOperationalRestaurant(restaurantId);

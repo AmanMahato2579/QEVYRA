@@ -1,0 +1,28 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Environment (never commit secrets)
+.env
+.env.*
+!.env.example
+
+# Dependencies / build output
+node_modules/
+.next/
+out/
+build/
+*.tsbuildinfo
+
+# Runtime artifacts (logs, pids, local DB dumps)
+*.log
+*.pid
+backups/
+*.dump
+
+# Local tooling
+.vercel/
+.pnp.*

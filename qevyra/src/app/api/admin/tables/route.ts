@@ -1,20 +1,17 @@
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { apiGuard } from "@/lib/api-guard";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { loadOperationalRestaurant, getEffectiveAccess, effectiveTableLimit } from "@/lib/plans";
-
-async function getRestaurantId(): Promise<string | null> {
-  const session = await auth();
-  return (session?.user as { restaurantId?: string | null })?.restaurantId ?? null;
-}
 
 const tableSchema = z.object({
   tableNumber: z.number().int().positive(),
 });
 
 export async function GET() {
-  const restaurantId = await getRestaurantId();
+  const guard = await apiGuard({ permission: "resources.view" });
+  if (guard.error) return guard.error;
+  const restaurantId = guard.user.restaurantId;
   if (!restaurantId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const tables = await prisma.table.findMany({
@@ -25,7 +22,9 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const restaurantId = await getRestaurantId();
+  const guard = await apiGuard({ permission: "resources.manage" });
+  if (guard.error) return guard.error;
+  const restaurantId = guard.user.restaurantId;
   if (!restaurantId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = await req.json();

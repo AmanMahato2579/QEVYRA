@@ -21,7 +21,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       take: 1000,
     });
     businessSites = websites.map((w) => ({
-      url: `${base}/b/${w.business.slug}`,
+      url: `${base}/s/${w.business.slug}`,
       lastModified: w.updatedAt,
       priority: 0.6,
     }));

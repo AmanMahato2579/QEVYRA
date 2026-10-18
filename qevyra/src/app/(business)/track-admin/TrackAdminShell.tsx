@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
+import { visibleBusinessNav, type ModuleFlags } from "@/lib/navigation";
 import { LayoutDashboard, ClipboardList, Workflow, Globe, LogOut, Menu as MenuIcon, X, Truck } from "lucide-react";
 
 interface TrackAdminShellProps {
@@ -12,25 +13,38 @@ interface TrackAdminShellProps {
   userEmail: string;
   businessName: string;
   businessType: string;
+  role?: string | null;
+  hasWebsite?: boolean;
   children: React.ReactNode;
 }
+
+type NavIcon = React.ComponentType<{ className?: string }>;
+
+// Presentation for the shared business nav catalog (navigation.ts), track kind.
+const TRACK_NAV: Record<string, { icon: NavIcon; label: string }> = {
+  "track-dashboard": { icon: LayoutDashboard, label: "Dashboard" },
+  "track-tickets": { icon: ClipboardList, label: "Tickets" },
+  "track-workflows": { icon: Workflow, label: "Workflows" },
+  "track-website": { icon: Globe, label: "Website" },
+};
 
 export default function TrackAdminShell({
   userName,
   userEmail,
   businessName,
   businessType,
+  role = null,
+  hasWebsite = true,
   children,
 }: TrackAdminShellProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const navItems = [
-    { href: "/track-admin", label: "Dashboard", icon: LayoutDashboard, exact: true },
-    { href: "/track-admin/tickets", label: "Tickets", icon: ClipboardList },
-    { href: "/track-admin/workflows", label: "Workflows", icon: Workflow },
-    { href: "/track-admin/website", label: "Website", icon: Globe },
-  ];
+  const modules: ModuleFlags = { menu: false, order: false, website: hasWebsite, track: true };
+  const navItems = visibleBusinessNav({ kind: "track", role, modules }).flatMap((item) => {
+    const meta = TRACK_NAV[item.key];
+    return meta ? [{ href: item.href, label: meta.label, icon: meta.icon, exact: item.exact }] : [];
+  });
 
   return (
     <div className="flex min-h-screen bg-gray-50">

@@ -85,6 +85,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             include: {
               restaurant: { select: { id: true, slug: true, name: true } },
               business: { select: { id: true, name: true, type: true } },
+              memberships: { select: { businessId: true, role: true, isActive: true } },
             },
           });
 
@@ -101,11 +102,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
           clearLoginFailures(emailKey);
 
+          // Business-scoped staff role: preferred membership for the user's
+          // tenant, else their only membership. Absent → platform login role.
+          const membership =
+            user.memberships.find((m) => m.isActive && m.businessId === user.businessId) ??
+            (user.businessId ? undefined : user.memberships.find((m) => m.isActive));
+
           return {
             id: user.id,
             email: user.email,
             name: user.name,
             role: user.role,
+            staffRole: membership?.role ?? null,
             restaurantId: user.restaurantId,
             restaurantSlug: user.restaurant?.slug ?? null,
             restaurantName: user.restaurant?.name ?? null,

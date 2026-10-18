@@ -1,5 +1,5 @@
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { apiGuard } from "@/lib/api-guard";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -9,16 +9,13 @@ const patchSchema = z.object({
   isActive: z.boolean().optional(),
 });
 
-async function getRestaurantId(): Promise<string | null> {
-  const session = await auth();
-  return (session?.user as { restaurantId?: string | null })?.restaurantId ?? null;
-}
-
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ categoryId: string }> }
 ) {
-  const restaurantId = await getRestaurantId();
+  const guard = await apiGuard({ permission: "catalog.manage" });
+  if (guard.error) return guard.error;
+  const restaurantId = guard.user.restaurantId;
   if (!restaurantId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { categoryId } = await params;
@@ -37,7 +34,9 @@ export async function DELETE(
   req: Request,
   { params }: { params: Promise<{ categoryId: string }> }
 ) {
-  const restaurantId = await getRestaurantId();
+  const guard = await apiGuard({ permission: "catalog.manage" });
+  if (guard.error) return guard.error;
+  const restaurantId = guard.user.restaurantId;
   if (!restaurantId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const { categoryId } = await params;

@@ -56,10 +56,14 @@ export default async function TrackTicketsPage() {
       </div>
 
       <TicketsClient
-        tickets={JSON.parse(JSON.stringify(tickets))}
-        workflows={JSON.parse(
-          JSON.stringify(workflows.map((w) => ({ id: w.id, name: w.name, codePrefix: w.codePrefix, isActive: w.isActive })))
-        )}
+        tickets={tickets.map((t) => ({
+          ...t,
+          items: t.items.map((it) => ({
+            ...it,
+            unitPrice: it.unitPrice == null ? null : Number(it.unitPrice),
+          })),
+        }))}
+        workflows={workflows.map((w) => ({ id: w.id, name: w.name, codePrefix: w.codePrefix, isActive: w.isActive }))}
         counts={counts}
         statusMeta={TRACK_STATUS_META}
       />

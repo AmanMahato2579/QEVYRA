@@ -1,14 +1,10 @@
-import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 import { listActivity } from "@/lib/activity";
-
-async function isSuperAdmin() {
-  const session = await auth();
-  return (session?.user as { role?: string })?.role === "SUPER_ADMIN";
-}
+import { superAdminGuard } from "@/lib/api-guard";
 
 export async function GET(req: Request) {
-  if (!(await isSuperAdmin())) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const guard = await superAdminGuard();
+  if (guard.error) return guard.error;
   const { searchParams } = new URL(req.url);
   const limit = Number.parseInt(searchParams.get("limit") ?? "60", 10);
   const safe = Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 200) : 60;

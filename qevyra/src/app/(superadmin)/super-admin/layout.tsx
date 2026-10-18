@@ -1,7 +1,7 @@
 import { requireSuperAdmin } from "@/lib/auth-guard";
 import Link from "next/link";
 import AuthStateWatcher from "@/components/admin/AuthStateWatcher";
-import { LayoutDashboard, Building2, BadgeCheck, Settings, ScrollText, Truck, Users, LogOut } from "lucide-react";
+import { LayoutDashboard, Building2, BadgeCheck, Settings, ScrollText, Users, LogOut } from "lucide-react";
 import { signOut } from "@/lib/auth";
 
 export default async function SuperAdminLayout({ children }: { children: React.ReactNode }) {
@@ -37,7 +37,7 @@ export default async function SuperAdminLayout({ children }: { children: React.R
       </header>
       <nav className="border-b border-white/10">
         <div className="max-w-7xl mx-auto px-6 flex items-center gap-1 overflow-x-auto">
-          {links.map(({ href, label, icon: Icon, match }) => (
+          {links.map(({ href, label, icon: Icon }) => (
             <Link
               key={href}
               href={href}

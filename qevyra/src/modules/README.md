@@ -1,6 +1,6 @@
 # QEVYRA Modules
 
-Modular-monolith boundaries (see `docs/QEVYRA_ARCHITECTURE.md`). A module owns a
+Modular-monolith boundaries (see root `docs/ARCHITECTURE_RULES.md`). A module owns a
 product axis and depends only on platform core — never on another module.
 
 Current boundaries and where the code lives today:

@@ -9,8 +9,9 @@ import type { BillConfig, SessionOrder } from "@/lib/session-math";
 import ItemActions from "@/components/admin/ItemActions";
 import AddFoodModal from "@/components/admin/AddFoodModal";
 import BillModal from "@/components/admin/BillModal";
+import TransferModal, { type TransferTarget } from "@/components/admin/TransferModal";
 import { Badge } from "@/components/ui/badge";
-import { ChefHat, ChevronLeft, Loader2, Plus, Receipt, User } from "lucide-react";
+import { ChefHat, ChevronLeft, Loader2, Plus, Receipt, User, ArrowRightLeft } from "lucide-react";
 
 interface WorkspaceTable {
   id: string;
@@ -58,6 +59,7 @@ interface Props {
   initialSession: (SessionMeta & { orders?: SessionOrder[] }) | null;
   initialOrders: SessionOrder[];
   menu: WaiterMenuCategory[];
+  targets: TransferTarget[];
   currency: string;
   lang: string;
   isTaxEnabled: boolean;
@@ -71,6 +73,7 @@ export default function TableWorkspace({
   initialSession,
   initialOrders,
   menu,
+  targets,
   currency,
   lang,
   isTaxEnabled,
@@ -93,6 +96,7 @@ export default function TableWorkspace({
   const [orders, setOrders] = useState<SessionOrder[]>(initialOrders);
   const [addOpen, setAddOpen] = useState(false);
   const [billOpen, setBillOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
   const [pollFailed, setPollFailed] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -236,12 +240,21 @@ export default function TableWorkspace({
                 <Plus className="w-4 h-4" /> {lang === "NEP" ? "थप्नुहोस्" : "Add Food"}
               </button>
               {sessionMeta && !isClosed && (
-                <button
-                  onClick={() => setBillOpen(true)}
-                  className="h-11 px-4 rounded-xl text-sm font-bold text-white bg-green-600 hover:bg-green-700 flex items-center gap-1.5 shadow-lg shadow-green-600/30 transition-transform active:scale-95"
-                >
-                  <Receipt className="w-4 h-4" /> {lang === "NEP" ? "बिल" : "Bill"}
-                </button>
+                <>
+                  <button
+                    onClick={() => setTransferOpen(true)}
+                    title={lang === "NEP" ? "टेबल सार्नुहोस्" : "Transfer to another table"}
+                    className="h-11 w-11 rounded-xl text-sm font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 flex items-center justify-center transition-transform active:scale-95"
+                  >
+                    <ArrowRightLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => setBillOpen(true)}
+                    className="h-11 px-4 rounded-xl text-sm font-bold text-white bg-green-600 hover:bg-green-700 flex items-center gap-1.5 shadow-lg shadow-green-600/30 transition-transform active:scale-95"
+                  >
+                    <Receipt className="w-4 h-4" /> {lang === "NEP" ? "बिल" : "Bill"}
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -377,6 +390,20 @@ export default function TableWorkspace({
           }}
         />
       )}
+
+      <TransferModal
+        open={transferOpen}
+        onClose={() => setTransferOpen(false)}
+        tableId={table.id}
+        tableNumber={table.tableNumber}
+        targets={targets}
+        lang={lang}
+        onTransferred={() => {
+          setSessionMeta(null);
+          setOrders([]);
+          router.refresh();
+        }}
+      />
 
       <AddFoodModal
         open={addOpen}

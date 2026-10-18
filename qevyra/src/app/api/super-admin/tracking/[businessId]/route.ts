@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { logActivity } from "@/lib/activity";
 import { isTrackBusinessType } from "@/lib/business-kind";
+import { superAdminGuard } from "@/lib/api-guard";
 
 const schema = z
   .object({
@@ -18,8 +18,8 @@ const schema = z
   .refine((v) => Object.keys(v).length > 0, { message: "Nothing to update" });
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ businessId: string }> }) {
-  const session = await auth();
-  if ((session?.user as { role?: string })?.role !== "SUPER_ADMIN") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  const guard = await superAdminGuard();
+  if (guard.error) return guard.error;
 
   const parsed = schema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Invalid request" }, { status: 400 });

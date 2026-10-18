@@ -21,7 +21,6 @@ export default async function CategoriesPage() {
       </div>
       <CategoriesClient
         categories={JSON.parse(JSON.stringify(categories))}
-        restaurantId={user.restaurantId!}
       />
     </div>
   );

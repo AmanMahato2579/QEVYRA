@@ -1,5 +1,5 @@
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { apiGuard } from "@/lib/api-guard";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getAdminBookableServices } from "@/lib/db";
@@ -24,20 +24,19 @@ const serviceSchema = z.object({
   }
 });
 
-async function getRestaurantId(): Promise<string | null> {
-  const session = await auth();
-  return (session?.user as { restaurantId?: string | null })?.restaurantId ?? null;
-}
-
 export async function GET() {
-  const restaurantId = await getRestaurantId();
+  const guard = await apiGuard({ permission: "bookings.view" });
+  if (guard.error) return guard.error;
+  const restaurantId = guard.user.restaurantId;
   if (!restaurantId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const services = await getAdminBookableServices(restaurantId);
   return NextResponse.json(services);
 }
 
 export async function POST(req: Request) {
-  const restaurantId = await getRestaurantId();
+  const guard = await apiGuard({ permission: "bookings.manage" });
+  if (guard.error) return guard.error;
+  const restaurantId = guard.user.restaurantId;
   if (!restaurantId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const restaurant = await prisma.restaurant.findUnique({

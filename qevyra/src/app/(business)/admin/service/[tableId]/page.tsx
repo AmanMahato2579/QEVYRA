@@ -28,12 +28,29 @@ export default async function ServiceTablePage({ params }: Props) {
   const overview = session ? await getSessionOverview(session.id, user.restaurantId!) : null;
   const menu = await getPublicMenu(user.restaurantId!);
 
+  // Candidate destinations for a bill transfer: active tables in this
+  // restaurant, excluding the current one, with their occupancy flag.
+  const destinationTables = await prisma.table.findMany({
+    where: { restaurantId: user.restaurantId!, isActive: true, id: { not: table.id } },
+    select: {
+      id: true,
+      tableNumber: true,
+      tableSessions: { where: { status: "ACTIVE" }, select: { id: true }, take: 1 },
+    },
+    orderBy: { tableNumber: "asc" },
+  });
+
   return (
     <TableWorkspace
       table={JSON.parse(JSON.stringify(table))}
       initialSession={overview ? JSON.parse(JSON.stringify(overview)) : null}
       initialOrders={overview ? JSON.parse(JSON.stringify(overview.orders)) : []}
       menu={JSON.parse(JSON.stringify(menu))}
+      targets={destinationTables.map((t) => ({
+        id: t.id,
+        tableNumber: t.tableNumber,
+        occupied: t.tableSessions.length > 0,
+      }))}
       currency={restaurant?.currency ?? "NPR"}
       lang={restaurant?.language ?? "EN"}
       isTaxEnabled={restaurant?.isTaxEnabled ?? false}

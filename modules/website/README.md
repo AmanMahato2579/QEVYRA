@@ -1,15 +1,13 @@
-# QEVYRA Website — PLACEHOLDER
+# QEVYRA Website
 
-*No code yet. This directory intentionally contains only documentation.*
+Public business website product. **Live in `qevyra/`** (this folder is a product placeholder only).
 
-Planned product: **on-platform business website** — a public, slug-based website per business with QR landing and discovery, sharing the QEVYRA tenant and capability model.
+## Scope (live)
 
-## Scope (planned, from the roadmap)
+- Public storefront per business, rendered at `/s/[slug]` (single canonical public route).
+- Owner editor (`Website` model) under `/admin/website`; `Site` engine bridges legacy content.
+- Website content is a projection of canonical business data — never a second database.
 
-- Public business website pages (business-scoped, `Business.tenantSlug`).
-- QR landing pages tied to the QEVYRA public handle.
-- Basic SEO; website.* feature keys in the capability catalog.
+## This folder
 
-## Not started
-
-No data model, no code, no migrations. Templates follow the platform rules when Stage 4 begins. See `docs/QEVYRA_ROADMAP.md` Stage 4.
+No code here. Development happens in `qevyra/src/modules/website/` and `qevyra/src/modules/sites/`. See root `AGENTS.md` and `qevyra/README.md`.

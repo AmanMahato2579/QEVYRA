@@ -1,130 +1,83 @@
-QEVYRA
-Build what matters.
-QEVYRA is a multi-business digital platform designed to help businesses manage and grow their operations through a connected suite of digital products.
-Restaurants, hotels, homestays, retailers, and service businesses can use the products they need—individually or together—within a shared platform foundation.
-The platform is built around one repository, one application ecosystem, and a shared tenant model. New products are introduced incrementally, building on a working core rather than creating disconnected systems.
----
-At a glance
-Platform: Multi-business digital products
-Architecture: Monorepo with a shared platform foundation
-Tenant model: Business-scoped data and access
-Current live product: QEVYRA Order
-Planned products: QEVYRA Track and QEVYRA Website
-> **Project status:** QEVYRA Order is deployed and working. Track and Website are currently placeholders and are not implemented products.
-Products
-Product	What it is	Status	Location
-QEVYRA Order	QR menus, customer ordering, bookings, and billing	Live	`modules/order/menu-saas`
-QEVYRA Track	Digital place/venue usage, including timers and push notifications	Placeholder	`modules/track`
-QEVYRA Website	Business websites hosted on the platform and QR landing pages	Placeholder	`modules/website`
-Products are intended to be optional and combinable. A business should be able to adopt the products relevant to its needs without being forced to use the entire suite.
-Platform vision
-QEVYRA aims to provide businesses with a connected digital toolkit through:
-A shared business identity: Products operate in the context of a business tenant.
-Composable products: Businesses can use individual products or combine them as their needs grow.
-A common foundation: Shared platform capabilities reduce duplicated implementation across products.
-Incremental delivery: New modules begin as placeholders and are implemented only when their roadmap stage and architectural requirements allow.
-Business-scoped data: Each product must respect tenant boundaries and access rules.
-These are architectural goals. The current implementation and migration stages are documented in the repository's architecture and roadmap files.
-Current implementation
-QEVYRA Order
-QEVYRA Order is the only runnable product at present. It is deployed and working as a self-contained application located at `modules/order/menu-saas`.
-Its current stack includes:
-Next.js 16 App Router
-React 19
-Prisma ORM
-PostgreSQL hosted on Supabase
-NextAuth.js v5
-Plan-based feature gating: BRONZE, SILVER, and STAR
-Current capabilities include:
-QR-based restaurant tables
-Digital menus and customer ordering
-Server-side pricing
-Bookings
-Web-push notifications
-Super Admin console
-The application was relocated into the monorepo without code changes. It remains self-contained; its relocation does not mean that it has already been refactored into shared platform packages.
-QEVYRA Track and QEVYRA Website
-These modules are currently README-only placeholders. They are not yet implemented or runnable.
-New business modules must follow the repository roadmap and architecture rules. No new module should ship without a `Business`-scoped data model and dependencies limited to the platform core.
-Repository structure
-```text
+# QEVYRA
+
+Multi-business digital platform — one app, one PostgreSQL database, one universal Business tenant.
+
+## Products
+
+- **QEVYRA Website** — Public business websites with configurable content, branding, and module CTAs.
+- **QEVYRA Order** — QR menu, table sessions, customer ordering, kitchen/service workflows, bookings, and billing (live).
+- **QEVYRA Track** — Service-business ticket/workflow tracking with secure public tracking links (live).
+
+## Tech Stack
+
+- **Next.js 16.3.3** (App Router, Turbopack)
+- **React 19.2.8** + TypeScript 5
+- **Prisma 6.19.3** + PostgreSQL
+- **NextAuth v5** (credentials + JWT)
+- **Tailwind CSS v4** + Radix UI
+- **Zod 4**
+
+## Repository Structure
+
+`
 .
 ├── AGENTS.md
 ├── docs/
-│   ├── CURRENT_SYSTEM_AUDIT.md
-│   ├── QEVYRA_ARCHITECTURE.md
-│   ├── QEVYRA_REPOSITORY_STRUCTURE.md
-│   ├── MIGRATION_MAP.md
-│   ├── ARCHITECTURE_RULES.md
-│   ├── QEVYRA_ROADMAP.md
-│   └── DATABASE_EVOLUTION.md
-└── modules/
-    ├── order/
-    │   └── menu-saas/       # Existing, runnable QEVYRA Order app
-    ├── track/               # Placeholder
-    └── website/             # Placeholder
-```
-This is a high-level overview of the repository. Consult the repository tree and structure document for the authoritative, detailed layout.
-Getting started
-Prerequisites
-Install the tools and services required by the Order application:
-Node.js and npm
-Docker with Docker Compose
-Access to the required environment configuration and services
-Check `modules/order/menu-saas/README.md` for the app's exact version requirements and configuration.
-Run QEVYRA Order locally
-From the Order application directory:
-```bash
-cd modules/order/menu-saas
+│   └── ARCHITECTURE_RULES.md  # Binding engineering rules
+├── modules/
+│   ├── order/
+│   │   └── menu-saas/          # Legacy deployed Order app (do not modify)
+│   ├── track/                 # Placeholder
+│   └── website/               # Placeholder
+└── qevyra/                    # Unified Next.js app (source of truth)
+    ├── prisma/
+    ├── src/
+    ├── scripts/
+    └── docs/
+`
+
+Development happens in qevyra/. modules/order/menu-saas/ must remain working.
+
+## Getting Started
+
+All commands run from qevyra/:
+
+`ash
+cd qevyra
 npm install
-```
-Create a local environment file from the example:
-```bash
 cp .env.example .env.local
-```
-Configure the required environment variables, then start the local database:
-```bash
+`
+
+Start local database (Docker):
+
+`ash
 docker compose up -d db
-```
-Apply Prisma migrations and start the development server:
-```bash
+`
+
+Apply migrations and run dev server:
+
+`ash
 npx prisma migrate dev
 npm run dev
-```
-For Windows PowerShell, use:
-```powershell
-Copy-Item .env.example .env.local
-```
-Follow the Order README for any additional setup, environment variables, database configuration, or troubleshooting steps.
-> **Note:** The commands above apply to QEVYRA Order only. Track and Website do not have runnable implementations yet.
-Documentation
-Read these documents before making architectural or migration decisions:
-Document	Purpose
-`AGENTS.md`	Entry point and instructions for AI agents working in this repository
-`docs/CURRENT_SYSTEM_AUDIT.md`	Describes the system as it exists today
-`docs/QEVYRA_ARCHITECTURE.md`	Target architecture and design principles
-`docs/QEVYRA_REPOSITORY_STRUCTURE.md`	Repository layout and migration path
-`docs/MIGRATION_MAP.md`	What is kept, moved, refactored, or replaced—and when
-`docs/ARCHITECTURE_RULES.md`	Binding engineering rules
-`docs/QEVYRA_ROADMAP.md`	Development stages, scope, and stage gates
-`docs/DATABASE_EVOLUTION.md`	Current, transitional, and target database schema
-Engineering principles
-All development should preserve the integrity of the existing working product while moving toward the target architecture.
-Audit before changing. Understand the current system before modifying it.
-Follow the roadmap. Implement only work permitted by the current stage and its gates.
-Respect tenant boundaries. Business-owned data and operations must be properly scoped to the relevant business.
-Keep module boundaries clear. Product modules must depend on the platform core—not on other product modules.
-Avoid premature refactoring. Do not restructure working code solely to make it appear more modular.
-Protect existing data and behavior. Migrations and refactors must be deliberate, reviewed, and safe.
-Document architectural changes. Keep the audit, migration map, database evolution, and roadmap aligned with the actual system.
-The detailed and binding requirements are defined in `docs/ARCHITECTURE_RULES.md`.
-Contributing and AI-assisted development
-Before starting work:
-Read `AGENTS.md`.
-Read `docs/ARCHITECTURE_RULES.md`.
-Review the current system audit and relevant roadmap stage.
-Identify the scope and affected modules before editing.
-Preserve existing application behavior and data unless a change is explicitly required and approved.
-Do not assume that a target-architecture feature already exists simply because it is described in the documentation. Verify the current implementation first.
----
-QEVYRA — Build what matters.
+`
+
+## Core Commands
+
+`ash
+npm run dev
+npm run lint
+npx tsc --noEmit
+npm run build
+npx prisma db seed
+node scripts/e2e-smoke.mjs
+`
+
+## Documentation
+
+- [AGENTS.md](./AGENTS.md) — AI agent instructions
+- [docs/ARCHITECTURE_RULES.md](./docs/ARCHITECTURE_RULES.md) — Binding rules
+- [qevyra/docs/QEVYRA_OPS.md](./qevyra/docs/QEVYRA_OPS.md) — Operations runbook
+
+## License
+
+Proprietary. All rights reserved.

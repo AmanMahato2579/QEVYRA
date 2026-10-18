@@ -1,7 +1,11 @@
 import { PrismaClient, BusinessType, BookableServiceType } from "@prisma/client";
+import { randomBytes } from "crypto";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
+
+/** Unguessable public token for seeded tracking tickets (mirrors the runtime). */
+const publicToken = () => randomBytes(24).toString("base64url");
 
 // Mirrors the plan catalog seeded by the baseline migration so that a
 // `prisma db push` environment (no migrations) still has working plan rows.
@@ -231,6 +235,7 @@ async function main() {
             workflowId: momoWorkflow.id,
             ticketNumber: 1,
             trackingCode: "MOMO-0001",
+            publicToken: publicToken(),
             customerName: "Hari KC",
             customerPhone: "+977-9812345678",
             itemSummary: "Catering — 100 chicken momo + 40 chili momo for an office event",
@@ -263,6 +268,7 @@ async function main() {
             workflowId: momoWorkflow.id,
             ticketNumber: 2,
             trackingCode: "MOMO-0002",
+            publicToken: publicToken(),
             customerName: "Punam Shrestha",
             customerPhone: "+977-9840000000",
             itemSummary: "Buff momo platter for a birthday party",
@@ -348,6 +354,7 @@ async function main() {
           workflowId: workflow.id,
           ticketNumber: 1,
           trackingCode: "FIT-0001",
+          publicToken: publicToken(),
           customerName: "Kabita Gurung",
           customerPhone: "+977-9861234567",
           itemSummary: "2 jackets + 1 trouser, navy suiting fabric",
@@ -838,6 +845,7 @@ async function main() {
             workflowId: workflow.id,
             ticketNumber: 1,
             trackingCode: def.ticket.code,
+            publicToken: publicToken(),
             customerName: def.ticket.customerName,
             customerPhone: def.ticket.customerPhone,
             itemSummary: def.ticket.itemSummary,

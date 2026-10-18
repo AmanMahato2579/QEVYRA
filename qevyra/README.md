@@ -1,55 +1,68 @@
-# QEVYRA
+# QEVYRA (app)
 
-Multi-business digital platform — one app, one PostgreSQL database, one universal `Business`
-tenant. Three engines beside a shared core: **QEVYRA Website**, **QEVYRA Order** (QR menu/ordering),
-**QEVYRA Track** (service/job tracking).
+The unified QEVYRA application — one Next.js 16 app, one PostgreSQL database, one universal
+`Business` tenant. Three product engines beside a shared core: **Website**, **Order**
+(QR menu/ordering/booking), **Track** (service ticket tracking).
 
-## The three public experiences
+Repo-level docs live in `../docs/` (start with `../AGENTS.md` and
+`../docs/ARCHITECTURE_RULES.md`). Operations runbook: `docs/QEVYRA_OPS.md`.
 
-```
-QEVYRA.com                    Company website (ONE — represents QEVYRA)
-  └─ b/{businessSlug}         Each customer's public website (one template, themed)
-       ├─ View Menu    ──>    Order public menu   /r/{restaurantSlug}
-       ├─ Track Service ──>   Track page           /track/{trackingCode}
-       └─ (no buttons)        Normal business: website only, no fake service buttons
-  └─ /login, /inactive        Auth / account states
-```
+## Products
 
-Public websites are **views**; the SaaS/admin systems are the **source of truth**.
-
-## Product modules
-
-- **core** — Business tenant, auth, users, customers, subscriptions, QR foundation, shared utils.
-- **website** — QEVYRA.com + business websites (template/themes/content editor).
-- **order** — QR menu SaaS (menu, tables+QR, orders, bookings, notifications).
-- **track** — tracking SaaS (workflows, tickets, tracking codes, status timeline).
+- **Website** — public storefront per business, rendered at `/s/[slug]` from the `Site`
+  engine (bridges legacy `Website` content when no `Site` row exists).
+- **Order** — QR table sessions, server-priced customer orders, per-item kitchen workflow,
+  bill/close, bookings, notifications.
+- **Track** — configurable ordered workflows, tickets with line items, secure public
+  tracking at `/track/[code]` (192-bit token, rate-limited code+phone fallback).
 
 Plans: **BRONZE** (view-only menu) · **SILVER** (menu + ordering) · **STAR** (founding/all
-features) · **GOLD** is architecture-ready but deliberately never exposed.
+features). **GOLD** is deliberately unimplemented.
 
 ## Repo layout
 
 ```
-app/            (public) Company+business+menu+track pages · (business) admin · (superadmin) platform admin
-modules/        module boundaries (website exists; core/order/track per plan)
-components/     ui + shared + per-module components
-lib/            prisma, plans (subscriptions), auth, settings, activity
-prisma/         schema + append-only migrations + seed
-docs/           architecture truth (read first: docs/QEVYRA_PLAN.md)
+src/
+  app/
+    (public)/       landing, /b/{slug} (→ /s/{slug}), /r/... QR menu, /track, /login, legal
+    (sites)/s/[slug]/  canonical public storefront (layout, menu, items, track)
+    (business)/     /admin (Order+Website), /track-admin (Track)
+    (superadmin)/   /super-admin platform console
+    api/            admin/, customer/, super-admin/, auth/, cron/, health
+  modules/          core, website, sites, order, track, inventory, notifications
+  lib/              prisma, auth, auth-guard, api-guard, permissions, plans, db (order god-module)
+  components/       ui + shared
+prisma/             schema (41 models, 16 enums) + append-only migrations + seed
+scripts/            prepare-db, e2e-smoke, backup/restore-db, daily-reset, seed-sites
+docs/               QEVYRA_OPS.md (runbook)
 ```
 
-## Docs
+Route = guard → validate (Zod) → service → reply. Tenant IDs always derive from
+session/context, never from the client.
 
-Start with **`docs/QEVYRA_PLAN.md`** (master plan + phases + verified-vs-planned status). Then:
-architecture, modules, routing, data-flow, website, order, track, subscriptions, database,
-public-flows — all under `docs/QEVYRA_*.md`.
+## Commands (run in `qevyra/`)
 
-## Getting around / commands
+```bash
+npm install                       # install
+npm run dev                       # dev server (localhost:3000)
+npm run lint                      # eslint
+npx tsc --noEmit                  # typecheck
+npm run build                     # prisma generate + next build
+npx prisma db seed                # seed
+npx prisma migrate dev            # local migration
+npx prisma migrate deploy         # production migration
+node scripts/e2e-smoke.mjs        # HTTP smoke (needs running dev server)
+```
 
-- Install: `npm install`
-- Dev: `npm run dev` (local Postgres via docker-compose; copy `.env.example` → `.env.local`)
-- Lint: `npm run lint` · Typecheck: `npx tsc --noEmit` · Build: `npm run build`
-- Migrate/seed: `npx prisma migrate dev` / `npx prisma db seed`
-- Smoke: `node scripts/e2e-smoke.mjs`
+Local DB: `docker compose up -d db` (container `menu-saas-postgres`, database `qevyra`).
+Stop the dev server before `npm run build` (Prisma engine DLL lock on Windows).
 
-Demo credentials (seeded): super admin `admin@qevyra.com`, demo owner `owner@demo.com`.
+## Demo credentials (seeded)
+
+- Super admin: `admin@qevyra.com` / `Admin123!`
+- Restaurant admin: `owner@homestay.com` / `Qevyra@123!`
+- Track admin (owner, per vertical): `owner@tailor.com`, `owner@motorgarage.com`,
+  `owner@cleaning.com`, `owner@repairhub.com` / `Qevyra@123!`
+- Staff: `staff@<vertical>.com` / `Qevyra@123!`
+
+Full list: `prisma/seed.ts`.

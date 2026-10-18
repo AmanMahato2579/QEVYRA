@@ -10,7 +10,9 @@ import { computeBill, flattenSessionOrders } from "@/lib/session-math";
 import type { SessionBill, SessionOrder } from "@/lib/session-math";
 import ItemActions from "@/components/admin/ItemActions";
 import BillModal from "@/components/admin/BillModal";
-import { Check, Loader2, Users, Receipt, ClipboardList, AlertTriangle } from "lucide-react";
+import StatusTimeline from "@/components/admin/StatusTimeline";
+import type { StatusHistoryEntry } from "@/components/admin/StatusTimeline";
+import { Check, Loader2, Users, Receipt, ClipboardList, AlertTriangle, History } from "lucide-react";
 
 interface SessionItemData {
   id: string;
@@ -33,6 +35,7 @@ interface OrderData {
   source: string;
   createdAt: string;
   orderItems: SessionItemData[];
+  statusHistory: StatusHistoryEntry[];
 }
 
 interface SessionData {
@@ -68,6 +71,7 @@ export default function OrdersClient({ sessions, restaurant }: Props) {
   const lang = restaurant?.language ?? "EN";
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   const [billFor, setBillFor] = useState<{ session: SessionData; bill: SessionBill } | null>(null);
+  const [historyFor, setHistoryFor] = useState<Record<string, boolean>>({});
   const [view, setView] = useState<"running" | "all">("running");
   const [, startTransition] = useTransition();
 
@@ -268,13 +272,35 @@ export default function OrdersClient({ sessions, restaurant }: Props) {
                 <span className="text-sm font-bold text-gray-900">
                   {t(lang, "Total", "कुल")}: {formatCurrency(bill.total, restaurant?.currency)}
                 </span>
-                <button
-                  onClick={() => setBillFor({ session, bill })}
-                  className="h-9 px-3.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-bold flex items-center gap-1.5"
-                >
-                  <Receipt className="w-4 h-4" /> {t(lang, "Bill", "बिल")}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setHistoryFor((prev) => ({ ...prev, [session.id]: !prev[session.id] }))}
+                    className="h-9 px-3 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 text-xs font-bold flex items-center gap-1.5"
+                  >
+                    <History className="w-4 h-4" /> {t(lang, "History", "इतिहास")}
+                  </button>
+                  <button
+                    onClick={() => setBillFor({ session, bill })}
+                    className="h-9 px-3.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-xs font-bold flex items-center gap-1.5"
+                  >
+                    <Receipt className="w-4 h-4" /> {t(lang, "Bill", "बिल")}
+                  </button>
+                </div>
               </div>
+
+              {historyFor[session.id] && (
+                <div className="border-t pt-3">
+                  <p className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-2">
+                    {t(lang, "Order status history", "अर्डर स्थिति इतिहास")}
+                  </p>
+                  <StatusTimeline
+                    lang={lang}
+                    entries={session.orders
+                      .flatMap((o) => (o.statusHistory ?? []).map((h) => ({ ...h, label: `#${o.orderNumber}` })))
+                      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())}
+                  />
+                </div>
+              )}
             </div>
           ))}
         </div>

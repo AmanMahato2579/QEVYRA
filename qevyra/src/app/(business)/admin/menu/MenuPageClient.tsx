@@ -41,7 +41,6 @@ interface Category {
 
 interface Props {
   categories: Category[];
-  restaurantId: string;
 }
 
 type DragKind = "category" | "item" | "variant";
@@ -84,7 +83,7 @@ function DropLine({ show, before }: { show: boolean; before: boolean }) {
   );
 }
 
-export default function MenuPageClient({ categories, restaurantId }: Props) {
+export default function MenuPageClient({ categories }: Props) {
   const router = useRouter();
   const { toast } = useToast();
   const [, startTransition] = useTransition();

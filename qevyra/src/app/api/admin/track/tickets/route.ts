@@ -3,6 +3,7 @@ import { z } from "zod";
 import { loadBusinessContext } from "@/lib/auth-guard";
 import { canUse } from "@/lib/plans";
 import { listTickets, createTicket, TrackError } from "@/modules/track/services";
+import { ticketItemSchema } from "@/modules/track/schemas";
 
 const createSchema = z.object({
   workflowId: z.string().min(1),
@@ -10,6 +11,7 @@ const createSchema = z.object({
   customerPhone: z.string().trim().max(50).optional().nullable(),
   itemSummary: z.string().trim().max(500).optional().nullable(),
   notes: z.string().trim().max(1000).optional().nullable(),
+  items: z.array(ticketItemSchema).max(50).optional().nullable(),
 });
 
 async function requireTrack() {

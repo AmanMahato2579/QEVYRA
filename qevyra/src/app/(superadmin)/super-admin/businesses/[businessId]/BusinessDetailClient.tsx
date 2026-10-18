@@ -209,7 +209,7 @@ export default function BusinessDetailClient({ business: b, activity }: Props) {
           </div>
           <div className="flex flex-col gap-2 items-end">
             {b.website?.isPublished && (
-              <Link target="_blank" href={`/b/${b.slug}`} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/20 text-sm text-gray-200 hover:bg-white/10">
+              <Link target="_blank" href={`/s/${b.slug}`} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-white/20 text-sm text-gray-200 hover:bg-white/10">
                 <Globe className="w-4 h-4" /> View website
               </Link>
             )}
@@ -397,8 +397,8 @@ export default function BusinessDetailClient({ business: b, activity }: Props) {
               {b.users.length === 0 && <p className="text-sm text-gray-500">No users yet.</p>}
             </div>
             {b.website?.isPublished ? (
-              <Link target="_blank" href={`/b/${b.slug}`} className="mt-4 flex items-center gap-2 text-xs text-purple-300 hover:text-purple-200">
-                <ExternalLink className="w-3.5 h-3.5" /> Public website live at /b/{b.slug}
+              <Link target="_blank" href={`/s/${b.slug}`} className="mt-4 flex items-center gap-2 text-xs text-purple-300 hover:text-purple-200">
+                <ExternalLink className="w-3.5 h-3.5" /> Public website live at /s/{b.slug}
               </Link>
             ) : null}
           </div>
